@@ -1,0 +1,11 @@
+---
+title: "Mycobacterium gene module clustering"
+output: html_notebook
+---
+
+******
+#Reading and Resources
+
+1. Yen Yi's MRes report [Large Scale Computational Analysis of Coding and Non-coding Element Expression in Mycobacterium tuberculosis](Mycobacteria_project/HBXV7_AMS_MSCI_DISSERTATION_SUBMISSION.pdf)
+
+2. Rosanna's MRes report [Computational analysis of combined RNA-seq datasets to predict novel ncRNAs in Mycobacterium tuberculosis](Mycobacteria_project/MRes_dissertation_RJ.pdf)
