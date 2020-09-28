@@ -9,3 +9,53 @@ output: html_notebook
 1. Yen Yi's MRes report [Large Scale Computational Analysis of Coding and Non-coding Element Expression in Mycobacterium tuberculosis](Mycobacteria_project/HBXV7_AMS_MSCI_DISSERTATION_SUBMISSION.pdf)
 
 2. Rosanna's MRes report [Computational analysis of combined RNA-seq datasets to predict novel ncRNAs in Mycobacterium tuberculosis](Mycobacteria_project/MRes_dissertation_RJ.pdf)
+
+
+## work on gathering/annotating list of ncRNAs in mtb
+
+***literature search***
+
+Papers that identify ncRNA in mtb
+
+1. [Cortes T, Schubert OT, Rose G, Arnvig KB, Comas I, Aebersold R, Young DB. 2013. Genome-wide mapping of transcriptional start sites defines an extensive leaderless transcriptome in Mycobacterium tuberculosis. Cell Rep. 5:1121–1131. ](http://dx.doi.org/10.1016/ j.celrep.2013.10.031)
+
+2. [Arnvig KB, Comas I, Thomson NR, Houghton J, Boshoff HI, Croucher NJ, Rose G, Perkins TT, Parkhill J, Dougan G, Young DB. 2011. Sequence-based analysis uncovers an abundance of non-coding RNA in the total transcriptome of Mycobacterium tuberculosis. PLoS Pathog. 7:e1002342. ](http://dx.doi.org/10.1371/journal.ppat.1002342)
+
+3. [Miotto P, Forti F, Ambrosi A, Pellin D, Veiga DF, Balazsi G, Gennaro ML, Di Serio C, Ghisotti D, Cirillo DM. 2012. Genome-wide discovery of small RNAs in Mycobacterium tuberculosis. PLoS One 7:e51950. ](https://journals.plos.org/plosone/article?id=10.1371/journal.pone.0051950) 
+
+4. [Dejesus, M. A. et al. Comprehensive essentiality analysis of the Mycobacterium tuberculosis genome via saturating transposon mutagenesis. MBio 8, 1–17 (2017).](https://mbio.asm.org/content/8/1/e02133-16)
+
+  -esp S5(UTRs and promoters), S4 (predicted sRNAs)
+  
+5. [Shell SS, Wang J, Lapierre P, Mir M, Chase MR, Pyle MM, Gawande R, Ahmad R, Sarracino DA, Ioerger TR, Fortune SM, Derbyshire KM, Wade JT, Gray TA. 2015. Leaderless transcripts and small proteins are common features of the mycobacterial translational landscape. PLoS Genet11:e1005641. doi:10.1371/journal.pgen.1005641](https://journals.plos.org/plosgenetics/article?id=10.1371/journal.pgen.1005641)
+
+6. [Arnvig KB, Young DB. 2009. Identification of small RNAs in Mycobacte- rium tuberculosis. Mol Microbiol 73:397–408. ](https://onlinelibrary.wiley.com/doi/full/10.1111/j.1365-2958.2009.06777.x)
+
+7. [DiChiara JM, Contreras-Martinez LM, Livny J, Smith D, McDonough KA, Belfort M. 2010. Multiple small RNAs identified in Mycobacterium bovis BCG are also expressed in Mycobacterium tuberculosis and Mycobacterium smegmatis. ](https://academic.oup.com/nar/article/38/12/4067/2409235)
+
+8. [Wang M, Fleming J, Li Z, Li C, Zhang H, Xue Y, Chen M, Zhang Z, Zhang XE, Bi L. 2016. An automated approach for global identification of sRNA-encoding regions in RNA-Seq data from Mycobacterium tubercu- losis. Acta Biochim Biophys Sin (Shanghai) 48:544–553. ](https://academic.oup.com/abbs/article/48/6/544/2195062)
+
+9. [Mycobrowser website lists 62 putative ncRNA genes](https://mycobrowser.epfl.ch/home/about)
+
+  can't download the list! use only for looking up particular ncRNAs
+
+10. [Rfam database lists 22 sRNAs, 12 with structure](https://rfam.xfam.org/search?q=mycobacterium%20tuberculosis%20AND%20rna_type:%22sRNA%22%20AND%20TAXONOMY:%2283332%22)
+
+
+11. [Gerrick, E. R. et al. Small RNA profiling in mycobacterium tuberculosis identifies mrsi as necessary for an anticipatory iron sparing response. Proc. Natl. Acad. Sci. U. S. A. 115, 6464–6469 (2018). ](https://www.pnas.org/content/115/25/6464)
+
+  saved S1 list of putative predicted sRNAs using 'BSfinder' (same as Dejesus?)
+  
+12. [Dinan, A. M. et al. Relaxed Selection Drives a Noisy Noncoding Transcriptome in Members of the. 5, 1–9 (2014). ](https://mbio.asm.org/content/5/4/e01169-14)
+
+
+Should I start with Gerrick et al and Tine's published list (Cortes?), UTR's from Shell, et al and then use essentiality info from DeJesus? look at baerhunter predictions and Tine's unpublished list
+
+import tables from various sources and try to combine
+
+library(dplyr)
+
+arnvig_table<-read.delim("Arnvig_ncRNA_2014.csv", sep=",", header=TRUE, stringsAsFactors=F)
+head(arnvig_table)
+
+
