@@ -10,6 +10,11 @@ output: html_notebook
 
 2. Rosanna's MRes report [Computational analysis of combined RNA-seq datasets to predict novel ncRNAs in Mycobacterium tuberculosis](Mycobacteria_project/MRes_dissertation_RJ.pdf)
 
+3. Baerhunter paper [Ozuna, A., Liberto, D., Joyce, R. M., Arnvig, K. B., & Nobeli, I. (2019). baerhunter: an R package for the discovery and analysis of expressed non-coding regions in bacterial RNA-seq data. Bioinformatics.] (https://doi.org/10.1093/bioinformatics/btz643)
+[supplementary data](btz643_supplementary_data.docx)
+
+
+
 
 ## work on gathering/annotating list of ncRNAs in mtb
 
@@ -253,5 +258,64 @@ feature_file_editor(bam_directory="/d/projects/u/zchayyt/MTB_sample_accession_fi
 ```
 
 OK, that worked! have to use step to create new directory and only include name of directory in working directory, not entire path. Viewed gff3 on artemis. Got gff3 files for all four datasets.
+
+Irilenia is concerned that BH results from PRJNA390669 is very low. check data for strandedness and quality. Strandedness is defo reversely stranded:
+
+![paired end reads showing both strands](Images/prjna_39066912.27.52.png)
+![R1 hidden so you can see whether reads correspond to reverse-strand CDS](Images/prjna_390669_12.29.16.png)
+
+It appears that the sRNAs are being called UTRs because the read depth is very high and signal never goes back to zero (noisy). We need to adjust the low/high coverage parameters to eliminate this problem.
+
+From Irilenia: "use bedtools(?) to calculate coverage per position. Then you have the distribution of the coverages and can find the various percentiles of this"
+
+![from suppl info from baerhunter paper](Images/suppl_baerhunter.png)
+
+```{bash}
+module load bedtools
+bedtools genomecov
+```
+
+Tool:    bedtools genomecov (aka genomeCoverageBed)
+Version: v2.27.1
+Summary: Compute the coverage of a feature file among a genome.
+
+Usage: bedtools genomecov [OPTIONS] -i <bed/gff/vcf> -g <genome>
+
+Options: 
+	-ibam		The input file is in BAM format.
+			Note: BAM _must_ be sorted by position
+
+From: [bedtools genomecov](https://bedtools.readthedocs.io/en/latest/content/tools/genomecov.html#max-controlling-the-histogram-s-maximum-depth)
+
+-d Reporting “per-base” genome coverage
+Using the -d option, bedtools genomecov will compute the depth of feature coverage for each base on each chromosome in genome file provided.
+
+The “per-base” output format is as follows:
+
+chromosome
+chromosome position
+depth (number) of features overlapping this chromosome position.
+
+-max Controlling the histogram’s maximum depth
+Using the -max option, bedtools genomecov will “lump” all positions in the genome having feature coverage greater than or equal to -max into the -max histogram bin. For example, if one sets -max equal to 50, the max depth reported in the output will be 50 and all positions with a depth >= 50 will be represented in bin 50.
+
+
+
+```{bash}
+bedtools genomecov -ibam /d/projects/u/zchayyt/MTB_sample_accession_files/sample_accessions/PRJNA390669_12/BWA_mem/SRR5689224_sorted.bam -d > SRR5689224_cov
+```
+
+don't need genome files with .bam files
+
+-bg Reporting genome coverage in BEDGRAPH format.
+Whereas the -d option reports an output line describing the observed coverage at each and every position in the genome, the -bg option instead produces genome-wide coverage output in BEDGRAPH format. This is a much more concise representation since consecutive positions with the same coverage are reported as a single output line describing the start and end coordinate of the interval having the coverage level, followed by the coverage level itself.
+
+```{bash}
+bedtools genomecov -ibam /d/projects/u/zchayyt/MTB_sample_accession_files/sample_accessions/PRJNA390669_12/BWA_mem/SRR5689224_sorted.bam -bg > SRR5689224_coverage.bg
+```
+
+this is useless, still finding each base. use -d above.
+
+Now need to plot this in R. should I do this for each .bam and then combine or take mean of each position?
 
 
