@@ -1,0 +1,11 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+
+Checking out Rosanna's code making the gff3 file for baerhunter. idea is to make a different feature file for each dataset and then combine features into one file to use for counting reads.
+
+She first attempts to compare pairwise between each dataset using genomic ranges overlaps, but I'm not sure she continues with this path
+
+Converts all files to bed files to use bedtools intersect

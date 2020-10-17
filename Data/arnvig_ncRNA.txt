@@ -1,0 +1,19 @@
+annotation start stop strand verified TSS aka ref
+ncRv10243 293604 293705 - Northern, RACE, TSS 293602 F6,mcr14, mpr13 8 , 9
+ncRv10609A 704187 704247 - Northern, RACE, TSS 704187 B55 8
+ncRv10685c — 786038; 786090 - Northern, TSS 786164 — 162 and A. Gaudion, K. B. Arnvig, and D. B. Young, unpublished
+ncRv11051 — — - Northern, TSS 1174124; 1175178 mpr5 9
+ncRv11144c — 1271907 - Northern, TSS 1272168 MTS0900 162 and Gaudion et al., unpublished
+ncRv11147c — — - Northern, TSS 1275957; 1275993 MTS0930 7
+ncRv11264c 1413224 1413107 - Northern, RACE, TSS 1413225 mcr11,MTS0997,MT1302 7 , 9 , 14
+ncRv11373 — 1547350** l - Northern, TSS 1547129 MTS1082* k 7 , 191
+ncRv11435 — — - Northern — RNA1 11
+ncRv11689c 1915190; 1915028 1914962 - Northern, RACE, TSS 1915190; 1915028 G2 8
+ncRv11733 1960601; 1960667 1960783 - Northern, RACE, TSS 1960667 MTS1338* 7
+ncRv11789c — — - Northern, TSS 2028215 mcr1 9
+ncRv12659 2980911 2981083 - Northern, RACE, TSS 2980911 MTS2048* 7 , 190
+ncRv13059 — 3421223 - Northern, TSS  — 162 and Gaudion et al., unpublished
+ncRv13660c 4099478 4099386 - Northern, RACE, TSS 4099480 B11,mpr19 7
+ncRv13661 4100683 4100987 - Northern, RACE, TSS 4100682 mcr8,mpr4, MTS2823 7 , 9
+ncRv13943 — — - Northern, TSS 4317071 MTS2975 7
+ncRv13596 — — - Northern, TSS 4040805 mpr17 9

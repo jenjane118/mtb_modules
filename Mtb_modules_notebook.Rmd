@@ -81,3 +81,177 @@ perhaps create an overlap index (Jaccard index) to figure out how much the genom
 
 
 also, Irilenia gave me file of highly expressed ncRNAs from Rosanna's mRes: "/Mycobacteria_project/combined_h37rv_Mtb_high_expressed.gff3""
+
+but decided to run baerhunter again using Yen-yi's .bam files:
+/d/projects/u/zchayyt/MTB_sample_accession_files/sample_accessions/
+
+accessions_M.txt   PRJNA278760_22_Safa  QC_original         test_bam
+Local_scripts      PRJNA327080_15       QC_postBWAmem
+PRJEB19976_15p_SE  PRJNA390669_12       QC_postfastp
+PRJEB65014_3       PRJNA507615_12_SE    QC_posttrimmomatic
+
+
+install baerhunter on thoth R library
+
+```{bash}
+module load R/v4.0.1
+```
+
+```{R}
+install.packages("devtools")
+#Warning in install.packages("devtools") :
+#  'lib = "/s/software/R/v4.0.1/lib64/R/library"' is not writable
+#Would you like to use a personal library instead? (yes/No/cancel) yes
+#Would you like to create a personal library
+#‘~/R/x86_64-pc-linux-gnu-library/4.0’
+#to install packages into? (yes/No/cancel) No
+#Error in install.packages("devtools") : unable to install packages
+
+
+install.packages("devtools")
+#Warning in install.packages("devtools") :
+#  'lib = "/s/software/R/v4.0.1/lib64/R/library"' is not writable
+#Would you like to use a personal library instead? (yes/No/cancel) yes
+#Would you like to create a personal library
+#‘~/R/x86_64-pc-linux-gnu-library/4.0’
+#to install packages into? (yes/No/cancel) yes
+
+```
+
+should I rename this library?
+
+also installed baerhunter and all dependencies (see baerhunter_trial.R)
+
+```{R}
+library(baerhunter)
+library(GenomicAlignments)
+library(IRanges)
+library(Rsamtools)
+library(Rsubread)
+library(DESeq2)
+
+feature_file_editor(bam_directory="/d/projects/u/zchayyt/MTB_sample_accession_files/sample_accessions/PRJNA278760_22_Safa",
+                    original_annotation_file="MtbH37RvNC_000962.3.gff",
+                    annot_file_dir = "/d/in16/u/sj003/refseqs/Mtb/",
+                    output_file="/d/projects/u/sj003/output_BH_12_10/PRJNA278760_22.gff3",
+                    original_sRNA_annotation="ncRNA",
+                    low_coverage_cutoff=5, #cutoff for noise
+                    high_coverage_cutoff=10,
+                    min_sRNA_length=40,
+                    min_UTR_length=50,
+                    paired_end_data=TRUE,
+                    strandedness="stranded")
+
+```
+
+make R script calling above and call in bash:
+
+```{bash}
+nohup R CMD BATCH $my_path/scripts/BH_make_gff.R &
+```
+
+this is not really working. says 'nohup ignoring input'
+tried again without nohup--taking forever
+
+not working no matter what i do, same error:
+
+[1] "Extracted plus strand data from BAM files"
+Error in h(simpleError(msg, call)) : 
+  error in evaluating the argument 'i' in selecting a method for function '[': 'match' requires vector arguments
+Calls: feature_file_editor -> sRNA_calc -> [ -> %in% -> .handleSimpleError -> h
+Execution halted
+
+
+I'm thinking maybe it doesn't work with R version (4.0.1). I'm using R version 3.5.1 (2018-07-02) on my machine. Try loading with that version (3.5.2 on thoth) and try again.
+
+```{bash}
+module load R/v3.5.2
+```
+
+re-load devtools--makes new personal R library for 3.5
+
+/d/user6/sj003/R/x86_64-pc-linux-gnu-library/3.5
+
+```{R}
+install.packages("devtools")
+library(devtools)
+library(IRanges)
+library(Rsamtools)
+library(DESeq2)
+library(Rsubread)
+devtools::install_github("irilenia/baerhunter")
+library(baerhunter)
+```
+
+i don't think the libraries are necessary except for the session used--have to re-load them before using baerhunter, but packages are in personal R library, or general library that R has access to
+
+```{bash}
+nohup R CMD BATCH $my_path/scripts/BH_make_gff.R >& BH_make_gff.Rout &
+```
+
+got a warning from server that I was exceeding my allocated disk space limits. killed process.
+```{bash}
+kill%2  ##this is job number
+```
+
+looks like it is related to using personal R library in the home directory. need to move this to /d/in16/u/sj003. Deleted 3.5 and 4.0 libraries in home directory.
+
+make files in working directory:
+```{bash}
+touch .Renviron
+touch R_packages
+```
+.Renviron contains line:  R_LIBS = /d/in16/u/sj003/R_packages
+
+when I reload R and install devtools, this time it works using correct folder.
+
+Irilenia pointed out that "strandedness" refers to +/- stranded datasets. need to confirm this for each library. all of Yen-yi's datasets were reversely stranded.
+
+going to re-do using R in correct directory, and using smallest dataset, PRJEB65014. this corresponds to E-MTAB-6011 (using number of samples, can't look at fastq files to find this identifier). Looked up on sra, this is correct bio-project number.
+
+| bio-project | dataset |
+|-----------|------------|
+| PRJEB65014 | E-MTAB-6011 |
+| PRJNA278760 | GSE670035 |
+| PRJNA327080 | GSE83814 |
+| PRJNA390669 | GSE100097 |
+
+
+folder for .bam files:
+/d/projects/u/zchayyt/MTB_sample_accession_files/sample_accessions/
+
+```{R}
+library(baerhunter)
+library(GenomicAlignments)
+library(IRanges)
+library(Rsamtools)
+library(DESeq2)
+library(Rsubread)
+
+# create a directory to hold the output files..
+if (!(dir.exists("./output_BH_13_10/"))) { dir.create("./output_BH_13_10/")
+}
+feature_file_editor(bam_directory="/d/projects/u/zchayyt/MTB_sample_accession_files/sample_accessions/PRJEB65014_3/BWA_mem/",
+                    original_annotation_file="MtbH37RvNC_000962.3.gff",
+                    annot_file_dir = "/d/in16/u/sj003/refseqs/Mtb/",
+                    output_file="output_BH_13_10/PRJE65014_3.gff3",
+                    original_sRNA_annotation="ncRNA",
+                    low_coverage_cutoff=5, #cutoff for noise
+                    high_coverage_cutoff=10,
+                    min_sRNA_length=40,
+                    min_UTR_length=50,
+                    paired_end_data=TRUE,
+                    strandedness="reversely_stranded")
+
+## run with other datasets:
+#/d/projects/u/zchayyt/MTB_sample_accession_files/sample_accessions/PRJNA278760_22_Safa/
+# Done 13/10/20
+# /d/projects/u/zchayyt/MTB_sample_accession_files/sample_accessions/PRJNA327080_15/BWA_mem/
+# Done 13/10/20
+# /d/projects/u/zchayyt/MTB_sample_accession_files/sample_accessions/PRJNA390669_12/BWA_mem/
+
+```
+
+OK, that worked! have to use step to create new directory and only include name of directory in working directory, not entire path. Viewed gff3 on artemis. Got gff3 files for all four datasets.
+
+

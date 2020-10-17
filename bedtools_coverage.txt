@@ -1,0 +1,3 @@
+bedtools coverage -a /d/in16/u/sj003/refseqs/mbovis/LT708304_updated_aug19.gff -b /d/in16/u/sj003/mbovis/bwa_mapped/2020_06_03_mem_BAMs/D_S2_L001_R1_001.sort.bam > ! t.D
+17:21
+cat t.D | grep CDS | awk '{print $NF}' | grep -v 0.000 | wc
