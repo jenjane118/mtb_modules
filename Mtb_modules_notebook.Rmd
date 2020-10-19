@@ -318,4 +318,66 @@ this is useless, still finding each base. use -d above.
 
 Now need to plot this in R. should I do this for each .bam and then combine or take mean of each position?
 
+maybe run for each (write script) and then find mean of coverage at each bp?
+
+```{bash}
+
+# script to run bedtools on each .bam file in folder and generate coverage graph for each sample
+
+# module load bedtools
+# usage nohup bash /d/in16/u/sj003/scripts/iterate_bedcov.sh >& run_bedcov_out &
+
+#ls /d/projects/u/zchayyt/MTB_sample_accession_files/sample_accessions/PRJNA327080_15/BWA_mem/*.bam > names.txt
+
+#!/bin/bash
+
+for file in `cat names.txt`
+
+do
+        FILENAME=`basename ${file%%.*}`
+
+        echo “File on the loop:                 ${FILENAME}”
+
+# generate coverage plot
+        bedtools genomecov -ibam $file -d > ${FILENAME}_cov
+
+        echo -e “#######################\n\n”
+
+done
+
+
+```
+
+
+looks like files are a bit uneven in terms of read coverage, for example 24 and 25  and 28 x10 higher than next two samples. make percentage distr bargraph (like one from baerhunter suppl materials above) for each sample.
+
+percentile boxplots for this sample (script in "coverage_plot.R"):
+## work with bedgraph coverage files
+## make plot with each sample from PRJNA390669_12 to attempt to show lower percentiles fall within a small range (but they don't really seem to in this dataset). 
+# use quantiles
+```{R}
+#produces sample quantiles corresponding to the given probabilities. 
+# quantile returns estimates of underlying distribution quantiles based on one or two order statistics from
+# the supplied elements in x at probabilities in probs.
+lapply(cov_df[,3:14], quantile, probs=c(0.05, 0.1, 0.15, 0.20, 0.25, 0.50, 0.75, 1.0))
+lapply(cov_df[,3:14], quantile, probs=c(0.05, 0.06, 0.07, 0.08, 0.09, 0.1, 0.11, 0.12, 0.13, 0.14, 0.15, 0.16, 0.17, 0.18, 0.19, 0.20))
+```
+
+![coverage percentiles](Images/PRJNA390669_boxplot.png)
+
+Might want to compare boxplots for individual samples and see if there is any correlation with different conditions?
+
+
+Do this again with dataset PRJNA327080 (GSE83814) (Safa's dataset with 15 samples)
+to see if it is better distributed?
+
+
+
+for later when we are comparing datasets, this maybe useful:
+[Jaccard statistics using bedtools](http://quinlanlab.org/tutorials/bedtools/bedtools.html)
+
+
+But perhaps I want to generate a coverage density plot that differentiates between coverage on each strand? In that case I might use bedtools 'coverage' instead of 'genomecov'? (or is there an option to do this on genomecov as well?)
+
+https://davetang.org/muse/2015/08/05/creating-a-coverage-plot-using-bedtools-and-r/
 

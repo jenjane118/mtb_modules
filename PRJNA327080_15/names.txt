@@ -1,0 +1,15 @@
+/d/projects/u/zchayyt/MTB_sample_accession_files/sample_accessions/PRJNA327080_15/BWA_mem/SRR3725585_sorted.bam
+/d/projects/u/zchayyt/MTB_sample_accession_files/sample_accessions/PRJNA327080_15/BWA_mem/SRR3725586_sorted.bam
+/d/projects/u/zchayyt/MTB_sample_accession_files/sample_accessions/PRJNA327080_15/BWA_mem/SRR3725587_sorted.bam
+/d/projects/u/zchayyt/MTB_sample_accession_files/sample_accessions/PRJNA327080_15/BWA_mem/SRR3725588_sorted.bam
+/d/projects/u/zchayyt/MTB_sample_accession_files/sample_accessions/PRJNA327080_15/BWA_mem/SRR3725589_sorted.bam
+/d/projects/u/zchayyt/MTB_sample_accession_files/sample_accessions/PRJNA327080_15/BWA_mem/SRR3725590_sorted.bam
+/d/projects/u/zchayyt/MTB_sample_accession_files/sample_accessions/PRJNA327080_15/BWA_mem/SRR3725591_sorted.bam
+/d/projects/u/zchayyt/MTB_sample_accession_files/sample_accessions/PRJNA327080_15/BWA_mem/SRR3725592_sorted.bam
+/d/projects/u/zchayyt/MTB_sample_accession_files/sample_accessions/PRJNA327080_15/BWA_mem/SRR3725593_sorted.bam
+/d/projects/u/zchayyt/MTB_sample_accession_files/sample_accessions/PRJNA327080_15/BWA_mem/SRR3725594_sorted.bam
+/d/projects/u/zchayyt/MTB_sample_accession_files/sample_accessions/PRJNA327080_15/BWA_mem/SRR3725595_sorted.bam
+/d/projects/u/zchayyt/MTB_sample_accession_files/sample_accessions/PRJNA327080_15/BWA_mem/SRR3725596_sorted.bam
+/d/projects/u/zchayyt/MTB_sample_accession_files/sample_accessions/PRJNA327080_15/BWA_mem/SRR3725597_sorted.bam
+/d/projects/u/zchayyt/MTB_sample_accession_files/sample_accessions/PRJNA327080_15/BWA_mem/SRR3725598_sorted.bam
+/d/projects/u/zchayyt/MTB_sample_accession_files/sample_accessions/PRJNA327080_15/BWA_mem/SRR3725599_sorted.bam
