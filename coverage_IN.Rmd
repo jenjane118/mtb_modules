@@ -1,0 +1,88 @@
+---
+title: "Coverage"
+author: "IN"
+date: "22/07/2019"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+```{r get_data}
+files <- list.files(path=".", pattern = ".bed$", full.names=FALSE, ignore.case=TRUE)
+#using readr::read_tsv as it is faster than read.csv
+temp <- do.call(cbind,lapply(files,readr::read_tsv, col_names=c("Chromosome", "pos", "cov")))
+cov.df <- temp[,c(1:3, 6, 9, 12, 15, 18, 21, 24, 27, 30, 33)]
+rm(temp)
+colnames(cov.df) <- c("Chromosome", "pos", gsub(pattern='_.*bed$', replacement="", files))
+#show that the lower percentiles are always within a given small range regardless of the remaining values
+lapply(cov.df[,3:13], quantile, probs=c(0.05, 0.1, 0.15, 0.20, 0.25, 0.50, 0.75, 1.0))
+lapply(cov.df[,3:13], quantile, probs=c(0.05, 0.06, 0.07, 0.08, 0.09, 0.1, 0.11, 0.12, 0.13, 0.14, 0.15, 0.16, 0.17, 0.18, 0.19, 0.20))
+
+#keep the number of reads mapped for each sample (from samtools flagstat)
+depths <- matrix(nrow=11, ncol=1)
+rownames(depths) <- colnames(cov.df)[3:14]
+depths["ERR1749116",1] = 20145736
+depths["ERR1880948",1] = 18068776
+depths["ERR262980",1] = 5529664
+depths["ERR262988",1] = 6407700
+depths["SRR1917694", 1] = 9804024
+depths["SRR1917695", 1] = 4571794
+depths["SRR896652", 1] = 7416560
+depths["SRR896653", 1] = 9952655
+depths["SRR896654",1] = 9842904
+depths["SRR998928",1] = 32443321
+depths["SRR998930",1] = 40014402
+
+ii <- cut(depths[,1], breaks = seq(min(depths[,1]), max(depths[,1]), len = 7), 
+          include.lowest = TRUE)
+colors <- colorRampPalette(c("white", "red"))(7)[ii]
+
+#WRONG boxplot(cov.df[1:100000,3:13], show.names=TRUE,  use.cols=TRUE, col=colors, ylim=c(0,500))
+#save the percentiles in a df
+percent.df <- as.data.frame(lapply(cov.df[,3:13], quantile, probs=c(0.05, 0.06, 0.07, 0.08, 0.09, 0.1, 0.11, 0.12, 0.13, 0.14, 0.15, 0.16, 0.17, 0.18, 0.19, 0.20)))
+
+boxplot(t(percent.df), show.names=TRUE, ylim=c(0,20),ylab="Number of reads in given percentile (raw)", xlab="Percentiles of number of reads across 11 M.tb samples" )
+
+library(beeswarm)
+beeswarm(as.data.frame(t(percent.df)), cex=1, add=T, vertical=T)
+
+
+
+              
+#each boxplot is the distribution of number of reads at given percentile for the 11 samples in the dataset
+png(file="boxplots_low_percentiles.png")
+boxplot(t(as.data.frame(lapply(cov.df[,3:13], quantile, probs=c(0.05, 0.06, 0.07, 0.08, 0.09, 0.1, 0.11, 0.12, 0.13, 0.14, 0.15, 0.16, 0.17, 0.18, 0.19, 0.20)))), show.names=TRUE, ylim=c(0,20),  ylab="Number of reads in given percentile (raw)", xlab="Percentiles of number of reads across 11 M.tb samples")
+dev.off()
+
+pdf(file="boxplots_low_percentiles.pdf")
+boxplot(t(as.data.frame(lapply(cov.df[,3:13], quantile, probs=c(0.05, 0.06, 0.07, 0.08, 0.09, 0.1, 0.11, 0.12, 0.13, 0.14, 0.15, 0.16, 0.17, 0.18, 0.19, 0.20)))), show.names=TRUE, ylim=c(0,20),  ylab="Number of reads in given percentile (raw)", xlab="Percentiles of number of reads across 11 M.tb samples")
+dev.off()
+
+boxplot(t(as.data.frame(lapply(cov.df[,3:13], quantile, probs=c(0.5, 0.51, 0.52, 0.53, 0.54, 0.55, 0.56, 0.57, 0.58, 0.59, 0.60, 0.61, 0.62, 0.63, 0.64, 0.65)))), show.names=TRUE, ylim=c(0,30))
+
+#suggestion of reviewer 1 for new plots
+## calculate the meqn at each position
+cov.df$mean <- rowMeans(cov.df[,3:13])
+## take the log(difference) at each position between each library and the meqn
+cov2.df <- log10(abs(cov.df[,3:13] - cov.df[,14])+0.000001)
+
+## take the log of the sequencing depths for each library
+data.frame(depths)-> depths.df
+depths.df$log <- log10(depths.df$depths)
+rownames(depths.df) == colnames(cov2.df)
+
+## plot the first few scatterplots
+plot( depths.df$log, unlist(cov2.df[1,]))
+plot( depths.df$log, unlist(cov2.df[2,]))
+plot( depths.df$log, unlist(cov2.df[3,]))
+
+## but it makes no sense to look at all positions as for most there is true transcription and hence there will be detectable correlation.
+
+
+
+
+```
+

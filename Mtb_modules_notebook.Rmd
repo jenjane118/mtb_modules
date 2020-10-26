@@ -11,7 +11,7 @@ output: html_notebook
 2. Rosanna's MRes report [Computational analysis of combined RNA-seq datasets to predict novel ncRNAs in Mycobacterium tuberculosis](Mycobacteria_project/MRes_dissertation_RJ.pdf)
 
 3. Baerhunter paper [Ozuna, A., Liberto, D., Joyce, R. M., Arnvig, K. B., & Nobeli, I. (2019). baerhunter: an R package for the discovery and analysis of expressed non-coding regions in bacterial RNA-seq data. Bioinformatics.] (https://doi.org/10.1093/bioinformatics/btz643)
-[supplementary data](btz643_supplementary_data.docx)
+[supplementary data](https://academic.oup.com/bioinformatics/article-abstract/36/3/966/5550627?redirectedFrom=fulltext)
 
 
 
@@ -177,7 +177,7 @@ re-load devtools--makes new personal R library for 3.5
 
 /d/user6/sj003/R/x86_64-pc-linux-gnu-library/3.5
 
-```{R}
+```{R eval=FALSE, include=FALSE}
 install.packages("devtools")
 library(devtools)
 library(IRanges)
@@ -195,6 +195,7 @@ nohup R CMD BATCH $my_path/scripts/BH_make_gff.R >& BH_make_gff.Rout &
 ```
 
 got a warning from server that I was exceeding my allocated disk space limits. killed process.
+
 ```{bash}
 kill%2  ##this is job number
 ```
@@ -206,6 +207,7 @@ make files in working directory:
 touch .Renviron
 touch R_packages
 ```
+
 .Renviron contains line:  R_LIBS = /d/in16/u/sj003/R_packages
 
 when I reload R and install devtools, this time it works using correct folder.
@@ -355,6 +357,7 @@ percentile boxplots for this sample (script in "coverage_plot.R"):
 ## work with bedgraph coverage files
 ## make plot with each sample from PRJNA390669_12 to attempt to show lower percentiles fall within a small range (but they don't really seem to in this dataset). 
 # use quantiles
+
 ```{R}
 #produces sample quantiles corresponding to the given probabilities. 
 # quantile returns estimates of underlying distribution quantiles based on one or two order statistics from
@@ -371,13 +374,129 @@ Might want to compare boxplots for individual samples and see if there is any co
 Do this again with dataset PRJNA327080 (GSE83814) (Safa's dataset with 15 samples)
 to see if it is better distributed?
 
+![percentile distribution for PRJNA327080](Images/PRJNA327080_covg_plot.png)
+
 
 
 for later when we are comparing datasets, this maybe useful:
 [Jaccard statistics using bedtools](http://quinlanlab.org/tutorials/bedtools/bedtools.html)
 
 
-But perhaps I want to generate a coverage density plot that differentiates between coverage on each strand? In that case I might use bedtools 'coverage' instead of 'genomecov'? (or is there an option to do this on genomecov as well?)
+But perhaps I want to generate a coverage density plot that differentiates between coverage on each strand? 
 
 https://davetang.org/muse/2015/08/05/creating-a-coverage-plot-using-bedtools-and-r/
+
+
+```{bash}
+bedtools genomecov -ibam NA18152.bam -bg -strand +
+```
+
+IN suggests seeing what coverage stats look like for cds only.
+
+
+also, can possibly take into consideration paired end reads?? -pc trackoption
+-pc	
+Calculates coverage of intervals from left point of a pair reads to the right point.
+Works for BAM files only
+
+```{bash}
+bedtools genomecov -ibam /d/projects/u/zchayyt/MTB_sample_accession_files/sample_accessions/PRJNA390669_12/BWA_mem/SRR5689224_sorted.bam -d -pc -strand + > SRR5689224_pos_cov
+
+bedtools genomecov -ibam /d/projects/u/zchayyt/MTB_sample_accession_files/sample_accessions/PRJNA390669_12/BWA_mem/SRR5689224_sorted.bam -d -pc -strand - > SRR5689224_neg_cov
+```
+
+run for entire set (changed iterate_bedcov.sh script) and look at boxplots
+
+![positive strand coverage for PRJNA390669_12](Images/PRJNA390669_pos_cov.png)
+
+![negative strand coverage for PRJNA390669_12](Images/prjna390669_neg_cov.png)
+
+need to check results because there should be MORE reads on positive strand, as there are more genes (is this right?). check selected regions on artemis with some of the bams. (which regions? those that should have a lot of positive reads?)
+
+looking at particular region on ARtemis to see why there is such a discrepancy between positive and negative read counts when I used bedtools. put .bam on artemis. compared with read counts file
+
+```
+#BAM: /Users/jenniferstiens/git/mtb_modules/SRR5689224_sorted.bam
+SRR5689224_sorted.bam	
+
+      	  Sense Antisense  Total	
+Rv0002	   2806    2787    5593	
+```
+
+This shows that coverage should have been about equal for this feature.
+
+![artemis view of bam read for above sample](Images/ARtemis_screenshot_srr5689224.png)
+
+
+![bedtools results](Images/bedtools_cov_SRR5689224.png)
+
+so is the program working properly on the positive strand?
+
+Has bedtools switched the positive and negative reads? But the .bam shows reads on both strands. Why are there so many reads on reverse strand in this region?
+
+#########################################################################
+
+to find coverage of only coding regions use bedtools coverage:
+[bedtools coverage](https://bedtools.readthedocs.io/en/latest/content/tools/coverage.html)
+
+```{bash}
+bedtools coverage -b /d/projects/u/zchayyt/MTB_sample_accession_files/sample_accessions/PRJNA390669_12/BWA_mem/SRR5689224_sorted.bam -a /d/in16/u/sj003/refseqs/Mtb/MtbH37RvNC_000962.3.gff > SRR5689224_cds_cov.bg
+```
+
+-b is .bam and -a is .gff. YES.
+-d	Report the depth at each position in each A feature. Positions reported are one based. Each position and depth follow the complete A feature. (don't use--wrong info)
+-s	Force “strandedness”. That is, only report hits in B that overlap A on the same strand. By default, overlaps are reported without respect to strand.
+-S	Require different strandedness. That is, only report hits in B that overlap A on the _opposite_ strand. By default, overlaps are reported without respect to strand.
+
+results: The number of features in B that overlapped (by at least one base pair) the A interval.
+
+do without strandedness to compare cds?
+
+iterate_bedcov_cds.sh
+
+all zero! 
+
+```{bash}
+nohup bedtools coverage -a d/in16/u/sj003/refseqs/Mtb/MtbH37RvNC_000962.3.gff -b /d/projects/u/zchayyt/MTB_sample_accession_files/sample_accessions/PRJNA390669_12/BWA_mem/*_sorted.bam > bedcov_out.bg >& run_cds_cov_out &
+```
+
+try with all bam files in folder rather than iterating through files? will give one number of reads per feature--not related to sequencing depth per sample. not sure this is helpful to us.
+
+Error: Unable to open file d/in16/u/sj003/refseqs/Mtb/MtbH37RvNC_000962.3.gff. Exiting.
+
+This may be that the 'chromosome' name doesn't match in bams and gff. need to either use same gff as yenyi did (check chrom name) or make new gff with new chrom name
+
+found ref seq in yenyi's folder and copied to mine:
+$my_path/refseqs/Mtb/Mtb_h37rv.ASM19595v2.45.Chromosome.gff3
+
+ref seq name in header on .bam files is 'AL123456.3', on gff 'Chromosome'
+
+```{bash}
+#test to see if my commands work to change ref file
+sed '25q' Mtb_h37rv.ASM19595v2.45.Chromosome.gff3 | sed 's/^Chromosome/AL123456.3/g' > test.txt
+```
+
+change all labels in gff to 'AL123456.3':
+
+```{bash}
+sed 's/^Chromosome/AL123456.3/g' Mtb_h37rv.ASM19595v2.45.Chromosome.gff3 > Mtb_h37rv.ASM19595v2_AL123456.3.gff3
+```
+
+new ref seq for bedtools coverage: d/in16/u/sj003/refseqs/Mtb/Mtb_h37rv.ASM19595v2_AL123456.3.gff3
+
+try with one file first:
+```{bash}
+bedtools coverage -b /d/projects/u/zchayyt/MTB_sample_accession_files/sample_accessions/PRJNA390669_12/BWA_mem/SRR5689224_sorted.bam -a /d/in16/u/sj003/refseqs/Mtb/Mtb_h37rv.ASM19595v2_AL123456.3.gff3  > SRR5689224_cds_cov.bg
+```
+
+then use edited script
+```{bash}
+nohup bash $my_path/scripts/iterate_bedcov_cds.sh >& run_bedcov_cds_out &
+```
+
+This seems to work. work out coverage plots for cds only.
+
+![boxplot for coverage percentiles for cds only](Images/boxplot_PRJNA390669_cds.png)
+
+
 
