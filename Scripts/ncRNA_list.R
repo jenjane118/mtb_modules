@@ -71,7 +71,7 @@ View(ncRNA_TSS_df)
 # annotations from Gerrick, 2018
 gerrick_table <-
   read.csv(
-    "Gerrick_sRNAs.csv",
+    "Data/Gerrick_sRNAs.csv",
     sep = ",",
     header = T,
     stringsAsFactors = F
@@ -94,7 +94,7 @@ View(gerrick_df)
 
 cortes_table <-
   read.delim(
-    "cortes_TSS_exp.csv",
+    "Data/cortes_TSS_exp.csv",
     header = T,
     sep = ',',
     comment.char = "#",
@@ -117,7 +117,7 @@ nrow(cortes_df1)
 # cortes starved tss list
 cortes_table2<-
   read.delim(
-    "cortes_TSS_starv.csv",
+    "Data/cortes_TSS_starv.csv",
     header=T,
     sep=",",
     comment.char="#",
@@ -155,7 +155,7 @@ write.table(cortes_df3, "comb_cortesTSS_srna.txt", row.names = F, quote = F)
 
 shell_table<-
   read.csv(
-    "All_TSSs_shell.csv", 
+    "Data/All_TSSs_shell.csv", 
     header=T, 
     stringsAsFactors = F)
 
@@ -518,7 +518,7 @@ base_list[repeats]
 
 
 # write table
-write.table(ncRNA_TSS_df, "ncRNAs_and_TSS.txt", quote = FALSE, row.names = FALSE)
+write.table(ncRNA_TSS_df, "ncRNAs_and_TSS.txt", quote = FALSE, row.names = T)
 
 
 

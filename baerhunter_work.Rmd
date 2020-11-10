@@ -17,11 +17,9 @@ working on baerhunter to customise parameters for the read depth of each .bam be
 
 1) Estimate amount of genome not transcribed (fraction that represents noise) for gff file provided. Use read.gff(file, na.strings = c(".", "?"), GFF3 = TRUE) and add up length of all 'Parent' elements. Add 80(?)bp for UTRs (5' and 3') for each CDS (need to count number of CDSs to estimate this). Add this as functionality on baerhunter.
 
-see baerhunter_testing.R
 
-```{R baerhunter_testing.R}
-## baerhunter implementation and testing
-## uses functions from baerhunter_code.R
+```{R percent_transcribed.R}
+## find proportion of Mtb genome that is transcribed
 
 if (!require("BiocManager"))
   install.packages("BiocManager")
@@ -129,42 +127,32 @@ last_gap <- total_genome_len - red_df[nrow(red_df), 3]
 # [1] 0.06431417
 # looks like about 6.4% non-transcribed at all?
 
-###################################################
+```
 
-# to identify amount transcribed on each strand:
-# use gr object that has all nc and coding and utrs, with strand info
-# find gaps
-str_spec_nontrx <- gaps(com_mtb_gr)
-str_spec_nontrx
 
-# need to calculate widths for each strand
-gaps_neg_strand <- str_spec_nontrx[strand(str_spec_nontrx) == "-"]
-w<-width(gaps_neg_strand)
-# add final gap
-com_mtb_df <- as.data.frame(com_mtb_gr)
-neg_ends <- com_mtb_df[which(com_mtb_df$strand == "-"),3]
-last_gap_neg<- total_genome_len - max(neg_ends) -1
-(sum(w) + last_gap_neg)/total_genome_len
-# 0.5186652
-gaps_pos_str <- str_spec_nontrx[strand(str_spec_nontrx) == "+"]
-W<-width(gaps_pos_str)
-# add final gap
-pos_df <- as.data.frame(gaps_pos_str)
-pos_ends <- com_mtb_df[which(com_mtb_df$strand == "+"), 3]
-last_gap_pos <- total_genome_len - max(pos_ends) -1
-(sum(W) + last_gap_pos)/total_genome_len
-# 0.5377225
+2) Calculate quantiles for each .bam as it begins loop in baerhunter.
 
-# overall non-transcribed percentage
-(sum(w) + sum(W) + last_gap_neg + last_gap_pos) / (2*total_genome_len)
-# 0.5281938
+testing on SRR5689224_sorted.bam
 
-#######################################################
+```{R quantile_calc.R}
+if (!require("BiocManager"))
+  install.packages("BiocManager")
+BiocManager::install("IRanges")
+BiocManager::install("Rsamtools")
+BiocManager::install("GenomicAlignments")
+install.packages("ape")
+BiocManager::install("GenomicRanges")
+
+
+library(IRanges)
+library(Rsamtools)
+library(GenomicAlignments)
+library(ape)
+library(GenomicRanges)
+
+
 
 # function to find coverage quantiles of individual bam files
-
-#BiocManager::install("TxDb.Dmelanogaster.UCSC.dm3.ensGene")
-#library(TxDb.Dmelanogaster.UCSC.dm3.ensGene)
 
 # x is a class of GAlignments, Each row is a read
 f <- "SRR5689224_sorted.bam"
@@ -182,10 +170,11 @@ head(xnum)
 # paired end reads
 # reversely stranded
 # need to run this for each strand 'target_strand'
-target_strand = "-"
+
 file_alignment <- readGAlignmentPairs(f, strandMode = 2)
 
-## do this for each strand
+## do this for - strand
+target_strand = "-"
 strand_alignment <- file_alignment[strand(file_alignment)==target_strand,]
 
 #ycov_pos <- coverage(y)
@@ -204,38 +193,638 @@ if (length(list_components)==1) {
   return(paste("Invalid BAM file:",f, sep = " "))
 }
 vals <- runValue(strand_cvg)
-percent.df <- as.data.frame(quantile(vals, probs=c(0.05, 0.06, 0.07, 0.08, 0.09, 0.1, 0.11, 0.12, 0.13, 0.14, 0.15, 0.16, 0.17, 0.18, 0.19, 0.20)))
-head(percent.df)
-## choose cutoff based on determination of untranscribed region of genome above
-## for mtb(above) choose 10-20% for cuttoff?
-#10%
-low_cutoff <- percent.df[6,1]
-# 20%
-hi_cutoff <- percent.df[16,1]
-low_cutoff; hi_cutoff
 
-#repeat for both strands and put in dataframe
-cutoff_df <- as.data.frame(matrix(0, nrow=nrow(percent.df), ncol = 2))
-rownames(cutoff_df)<-rownames(percent.df)
-colnames(cutoff_df)<-c("+", "-")
-if (target_strand == "+"){
-  cutoff_df$`+`<-percent.df$AL123456.3
-}else{
-    cutoff_df$`-`<-percent.df$AL123456.3
-  }
+lo_probs <- c(0.05, 0.06, 0.07, 0.08, 0.09, 0.1, 0.11, 0.12, 0.13, 0.14, 0.15, 0.16, 0.17, 0.18, 0.19, 0.20)
+all_probs <- c(0.20, 0.25, 0.50, 0.75, 0.8, 0.85, 0.9, 0.95, 1.0)
 
-cutoff_df
-t(cutoff_df)
-target_strand
+lo_percent.df <- as.data.frame(quantile(vals, probs=lo_probs))
+hi_percent.df <- as.data.frame(quantile(vals, probs=all_probs))
 
-boxplot(t(cutoff_df), show.names=TRUE,ylab="Number of reads in given percentile (raw)", xlab=c("Percentiles of number of reads in sample"))
+lo_df <- as.data.frame(matrix(0, 
+                              nrow=nrow(lo_percent.df), ncol = 2))
+colnames(lo_df)<-c("pos", "neg")
+rownames(lo_df)<-rownames(lo_percent.df)
+lo_df$neg<-lo_percent.df$AL123456.3
+
+hi_df <- as.data.frame(matrix(0,
+                              nrow=nrow(hi_percent.df), ncol = 2))
+colnames(hi_df)<-c("pos", "neg")
+rownames(hi_df)<-rownames(hi_percent.df)
+hi_df$neg<-hi_percent.df$AL123456.3
+
+lo_df
+hi_df
+
+## repeat for pos strand
+target_strand = "+"
+strand_alignment <- file_alignment[strand(file_alignment)==target_strand,]
+strand_cvg <- coverage(strand_alignment)
+list_components <- names(strand_cvg) ## "AL123456.3"
+target <- c()
+if (length(list_components)==1) {
+  target <- list_components
+} else {
+  return(paste("Invalid BAM file:",f, sep = " "))
+}
+vals <- runValue(strand_cvg)
+lo_percent.df <- as.data.frame(quantile(vals, probs=lo_probs))
+hi_percent.df <- as.data.frame(quantile(vals, probs=all_probs))
+head(lo_percent.df)
+head(hi_percent.df)
+
+
+# add to rel dataframe
+lo_df$pos<-lo_percent.df$AL123456.3
+hi_df$pos<-hi_percent.df$AL123456.3
+lo_df
+hi_df
+
+
+
+plot(lo_probs, lo_df$pos,
+     cex = 0.6, col="blue", 
+     xlab="Percentiles of reads per bp",
+     ylab = "Number of reads in a given percentile (Raw)",
+     main = "Strand specific distribution of bp coverage",
+)
+points(lo_probs, lo_df$neg, col="red", cex = 0.6)
+
+
+plot(all_probs, hi_df$pos,
+     cex = 0.6, col="blue", 
+     xlab="Percentiles of reads per bp",
+     ylab = "Number of reads in a given percentile (Raw)",
+     main = "Strand specific distribution of bp coverage",
+)
+points(all_probs, hi_df$neg, col="red", cex = 0.6)
+
+hi_df
 
 ```
 
 
-![boxplot for read distr in one sample](Images/read_distr_sample.png)
+![plot for read distr in one sample](Images/strand_distr_covg.png)
 
-2) Calculate quantiles for each .bam as it begins loop in baerhunter.
+But why are these increasing constantly? look at overall distribution.
 
-3) Using data for particular genome coverage (see 1), take number of reads in bottom 5-20% (whatever is appropriate acc to 1 above) as the lower/upper parameters. (how to estimate upper parameter?).  ('peak width' parameter==min sRNA length which is entered by user along with min UTR length).
+![overall distribution percentiles](Images/bhGAlign_method_strand_spec_cvg.png)
+When I plot up to 100%, final position has a crazy amount of reads. PCR jackpot skewing everything?
 
+```
+> hi_df
+         pos     neg
+20%       92      88
+25%      125     119
+50%      384     370
+75%      993     923
+80%     1260    1123
+85%     1676    1417
+90%     2454    1908
+95%     4141    3041
+100% 2898199 3489469
+```
+
+eliminated 100% from plotting, and got a more normal curve.
+
+do again with another sample from same dataset?
+let's try it for more typical dataset (like Safa's?)
+
+This makes me think we need some form of normalisation before we analyse this data. Looking at Yen-yi's paper, he shows the distribution boxplots of this data and there are a lot of outliers. The gold bars are this particular dataset, and this sample is first gold bar. Obviously can't normalise with others from dataset, but perhaps need to smooth data? Perhaps we can ignore top quantile(s?) Or basically that's what we do since we are really only interested in noise at low ranges.
+
+![figure from Yen-yi project](Images/Yen_yi_figure.png)
+
+Attempting to make boxplot using genomic alignments method used in baerhunter and comparing coverage between this and samtools method.
+
+```{bash}
+
+# to see .bam info, including chromosome name:
+samtools view -H  ERR2103723_sorted.bam
+
+
+#import short versions of 3 bams to test script
+
+cd /d/in19/u/zchayyt/
+samtools view -h -b ERR2103723_sorted.bam AL123456.3:1-10000 -o /d/in16/u/sj003/short_bams/sh_SERR210372_sorted.bam
+# need to have .bai file in same directory
+
+```
+
+I will also need index files in my directory for genomic alignment
+
+compare_covg_methods.R
+
+Run script with full length .bam from small dataset (3 samples)
+Very slow.
+
+In order to use larger datasets, attempt to run it on server to get percentile files, and then make boxplots on my machine?
+
+ran R script on server with small dataset to test (changed directories to find in yen yi's)
+
+```{bash}
+module load R
+nohup R CMD BATCH $my_path/scripts/compare_covg_methods.R >& compare_covg_methods.Rout &
+```
+
+![Baerhunter/genomic alignment method positive strand](Images/BH_Galign_method_pos_PRJNA327080_15.png)
+
+
+Want to compare individual sample using both methods (already done above with baerhunter(GA) method, do with samtools). Also make boxplots for other datasets using baerhunter(GA) method?
+
+For samtools depth method, the positive and negative strand percentiles are exactly the same. For BH-GAlignments, they are different.
+
+see compare_covg_methods.R for making of plots
+
+![comparison plot](Images/compare_methods_plot.png)
+
+plot percentiles from BH-GAlignments and samtools-depth for sample SRR5689224 from PRJNA390669_12 against each other.
+
+![percentile-percentile plot](Images/perc_perc_compare_BH_ST.png)
+
+3) Using data for particular genome coverage (see 1), take number of reads in bottom 20-50 (whatever is appropriate acc to 1 above) as the lower/upper parameters. (how to estimate upper parameter?).  ('peak width' parameter==min sRNA length which is entered by user along with min UTR length).
+
+To figure this out, need to run bh on datasets with different read depths at various parameters and compare against benchmark list of ncRNAs (like one Laura is using). Use Jaccard coefficient to estimate distance/difference in overlap and generate heatmap. (code will be in baerhunter_paper github). Determine how different cutoffs affect identification of known ncRNAs.
+
+Need boxplots to determine distribution of reads in each dataset. Use R method with GAlignments vs samtools which is not identifying strand correctly.
+
+Uses this script compare_cvg_methods.R on server
+
+```{R compare_cvg_methods.R}
+## Jennifer J. Stiens
+## 28/10/20
+
+
+## script to cycle through all samples (.bam files) and make boxplots from entire
+## dataset
+## uses genomic alignments method used in baerhunter (see quantile_calc.R)
+
+#cycle through all bam files in a dataset and make boxplot
+# 1) make alignment of .bam
+# 2) make coverage vector for each strand for each .bam
+# 3) store covg info in pos and neg strand dataframes
+# 3) can't unlist all covg info--too big. must use compressed cvg vector and apply 
+# percentile function and store in dataset of percentiles (can run again for hi_percentiles)
+# 4) use pos and neg strand percentile info for entire dataset (12 rows) 
+#     to make boxplot of percentiles for each strand
+
+if (!require("BiocManager"))
+  install.packages("BiocManager")
+BiocManager::install("IRanges")
+BiocManager::install("Rsamtools")
+BiocManager::install("GenomicAlignments")
+
+library(IRanges)
+library(Rsamtools)
+library(GenomicAlignments)
+
+
+lo_probs <- c(0.05, 0.06, 0.07, 0.08, 0.09, 0.1, 0.11, 0.12, 0.13, 0.14, 0.15, 0.16, 0.17, 0.18, 0.19, 0.20)
+all_probs <- c(0.10, 0.20, 0.30, 0.40, 0.50, 0.60, 0.70, 0.8, 0.9, 0.95)
+
+dataset <- "PRJNA390669_12"
+
+files <- list.files("/d/in19/u/zchayyt/sample_accessions/PRJNA390669_12_RC/BWA_mem", pattern="*.bam$", full.names=TRUE, ignore.case = TRUE)
+
+
+pos_per.df <- as.data.frame(matrix(0, nrow=length(all_probs), ncol=length(files)), 
+                            row.names = all_probs)
+#head(pos_per.df)
+neg_per.df <- as.data.frame(matrix(0, nrow=length(all_probs), ncol=length(files)),
+                            row.names = all_probs)
+
+for (i in 1:length(files)){
+  f<-files[i]
+  # paired end reads
+  # reversely stranded
+  file_alignment <- readGAlignmentPairs(f, strandMode = 2)
+
+  # do this for each strand
+  strands <- c("+", "-")
+  for (j in 1:2){
+    target_strand = strands[j]
+    strand_alignment <- file_alignment[strand(file_alignment)==target_strand,]
+    strand_cvg <- coverage(strand_alignment)
+    list_components <- names(strand_cvg)
+    target <- c()
+    if (length(list_components)==1) {
+      target <- list_components
+    } else {
+      return(paste("Invalid BAM file:",f, sep = " "))
+    }
+    vals <- runValue(strand_cvg)
+
+  # add to relevant dataframe
+    if (target_strand == "+"){
+      per_row <- lapply(vals, quantile, probs=all_probs)
+      #add to pos_cvg.df
+      pos_per.df[,i]<-per_row
+    }else{
+      per_row <- lapply(vals, quantile, probs=all_probs)
+      #add to neg_cvg.df
+      neg_per.df[,i]<-per_row
+    }
+  }
+}
+head(pos_per.df)
+head(neg_per.df)
+
+write.table(pos_per.df, file=paste(dataset, "_pos.tsv", sep=""), quote=F, sep=" ")
+write.table(neg_per.df, file=paste(dataset, "_neg.tsv", sep=""), quote=F, sep=" ")
+```
+
+This is determined for 3 datasets already: PRJNA327080_15, PRJNA390669_12, PRJEB65014_3
+
+PRJNA390669 is very high depth
+
+```{R boxplot_PRJNA390669, echo=FALSE, fig.width=4, fig.asp=0.8, fig.align="center"}
+dataset = "PRJNA390669_12"
+
+pos_per.df<-read.delim("percentiles/PRJNA390669_12_pos.tsv", sep = " ",
+                       stringsAsFactors = F)
+neg_per.df<-read.delim("percentiles/PRJNA390669_12_neg.tsv", sep = " ",
+                       stringsAsFactors = F)
+
+boxplot(t(pos_per.df), show.names=TRUE,
+        main = paste("Percentile distrbution in Dataset",dataset),
+        ylab="Number of reads in given percentile (raw)",
+        ylim = c(1,4000),
+        col = "light blue",
+        xlab= "Percentiles of number of reads"
+)
+par(new=T)
+boxplot(t(neg_per.df), show.names=TRUE,
+        col = "pink",
+        ylim = c(1,4000)
+        # ylab="Number of reads in given percentile (raw)"
+        # xlab= paste("Percentiles of number of reads in dataset ", dataset, sep="")
+)
+legend(0.3, 3800, legend=c("positive", "negative"), col=c("light blue", "pink"), pch=20, cex = 1.0)
+
+```
+
+![boxplot PRJNA390669_12, a high-depth dataset](Images/boxplot_PRJNA390669_12_overall.png)
+![PRJNA390669_12 focus on <1000 reads/bp](Images/boxplot_PRJNA390669_12_lower.png)
+
+PRJNA327080_15 is a medium depth dataset
+
+```{R boxplot PRNJNA327080_15, echo=FALSE, fig.width = 6, fig.asp = 0.80, fig.align="center"}
+dataset = "PRJNA327080_15"
+
+pos_per.df<-read.delim("percentiles/PRJNA327080_15_pos.tsv", sep = " ",
+                       stringsAsFactors = F)
+neg_per.df<-read.delim("percentiles/PRJNA327080_15_neg.tsv", sep = " ",
+                       stringsAsFactors = F)
+
+par(mfrow = c(1,1))
+boxplot(t(pos_per.df), show.names=TRUE,
+        main = paste("Percentile distrbution in Dataset",dataset),
+        ylab="Number of reads in given percentile (raw)",
+        ylim = c(1,1500),
+        col = "light blue",
+        xlab= "Percentiles of number of reads"
+)
+par(new=T)
+boxplot(t(neg_per.df), show.names=TRUE,
+        col = "pink",
+        ylim = c(1,1500)
+        # ylab="Number of reads in given percentile (raw)"
+        # xlab= paste("Percentiles of number of reads in dataset ", dataset, sep="")
+)
+legend(0.3, 3800, legend=c("positive", "negative"), col=c("light blue", "pink"), pch=20, cex = 1.0)
+
+
+```
+
+Do again for lower percentiles
+
+```{R boxplot PRNJNA327080_15_low, echo=FALSE, fig.width = 6, fig.asp = 0.80, fig.align="center"}
+dataset = "PRJNA327080_15"
+
+pos_per.df<-read.delim("percentiles/PRJNA327080_15_lo_pos.tsv", sep = " ",
+                       stringsAsFactors = F)
+neg_per.df<-read.delim("percentiles/PRJNA327080_15_lo_neg.tsv", sep = " ",
+                       stringsAsFactors = F)
+
+par(mfrow = c(1,1))
+boxplot(t(pos_per.df), show.names=TRUE,
+        main = paste("Percentile distrbution in Dataset",dataset),
+        ylab="Number of reads in given percentile (raw)",
+        ylim = c(1,180),
+        col = "light blue",
+        xlab= "Percentiles of number of reads"
+)
+par(new=T)
+boxplot(t(neg_per.df), show.names=TRUE,
+        col = "pink",
+        ylim = c(1,180)
+        # ylab="Number of reads in given percentile (raw)"
+        # xlab= paste("Percentiles of number of reads in dataset ", dataset, sep="")
+)
+legend(0.3, 170, legend=c("positive", "negative"), col=c("light blue", "pink"), pch=20, cex = 0.80)
+
+
+```
+
+focus on <50% to identify where cutoff should be. Maybe raising cutoff will eliminate noise? Line becomes more curved between .3-.4. low cutoff could be 50? High cutoff double this? 100?
+
+
+
+
+PRJEB65014 only has 3 samples, lower end of depth.
+
+![PRJEB65014 percentile distribution](Images/boxplots_PRJEB65014_3_Rmethod.png)
+
+
+Run BH at different parameters based on boxplot and above info that about 50% of genome not transcribed.
+
+Look at .gff3 files and compare with 'verified' ncRNA list generated for Laura's project. Just looking for ncRNAs, not UTRs at this point
+
+Script adapted from Irilenia: baerhunter_paper_irilenia.Rmd
+
+```{R verifying_BHgffs.R}
+## Overlap of predicted and known ncRNAs
+#Here, we check whether the features predicted by baerhunter have any 
+#overlap with confirmed small RNAs from list made for
+#Laura with verified TSS (Gerrick,2018; Cortes, 2013; Shell, 2015)
+# Gerrick, E. R. et al. Small RNA profiling in mycobacterium tuberculosis 
+#identifies mrsi as necessary for an anticipatory iron sparing response. 
+#Proc. Natl. Acad. Sci. U. S. A. 115, 6464–6469 (2018).
+
+library(rtracklayer)
+library(GenomicRanges)
+
+# We will repeat this process several times so worth packaging in a function
+compare_known_with_predicted <- function(annotation_file, known_RNA_file, minoverlap=1L) {
+  # import the homemade ncRNA file using rtracklayer's import function
+  annot <- import.gff3(annotation_file)
+  
+  # create subsets of the putative sRNAs and UTRs first
+  pred.sRNA <- subset(annot, type == "putative_sRNA")
+  #pred.UTR <- subset(annot, type == "putative_UTR")
+  num.pred.sRNA.plus <- length(ranges(subset(annot, (type == "putative_sRNA") & (strand == "+")) ) ) 
+  num.pred.sRNA.minus <- length(ranges(subset(annot, (type == "putative_sRNA") & (strand == "-")) ) ) 
+  #num.pred.UTRs.plus <- length(ranges(subset(annot, (type == "putative_UTR") & (strand == "+")) ) ) 
+  #num.pred.UTRs.minus <- length(ranges(subset(annot, (type == "putative_UTR") & (strand == "-")) ) ) 
+  
+  # read in the data from ncRNAs_and_TSS.txt file made with Gerrick and TSS annotations
+  known.ori <- read.table(file=known_RNA_file, header=FALSE,   
+                          sep = " ", skip=1) 
+  # select necessary columns
+  known <- known.ori[,1:7]
+  colnames(known)<-c("Chromosome", "sRNA_ID", "start", "end", "strand", "distance", "TSS")
+  
+  
+  known.all <- GRanges(
+                seqnames ="NC_000962.3", 
+                ranges   =IRanges(start=known$start, end=known$end), 
+                strand   =Rle(strand(known$strand)),
+                sRNA_ID  =known$sRNA_ID
+                )
+  
+  # we ignore the strand and count features on both strands 
+  sRNA.hits <- findOverlaps(known.all, pred.sRNA, type="any", minoverlap=minoverlap, ignore.strand=TRUE) 
+  #UTR.hits <- findOverlaps(known.all, pred.UTR, type="any", minoverlap=minoverlap, ignore.strand=TRUE ) 
+  
+  #how many predicted hits  are confirmed?
+  #num_UTR_confirmed <- length(unique(subjectHits(UTR.hits)))
+  num_sRNA_confirmed <- length(unique(subjectHits(sRNA.hits)))
+  #num_all_confirmed <- length(unique(c(subjectHits(UTR.hits), subjectHits(sRNA.hits))))
+  
+  #num_UTR_confirmed
+  num_sRNA_confirmed
+  #num_all_confirmed
+  
+  #num_pred_UTR <- length(ranges(pred.UTR))
+  num_pred_sRNA <- length(ranges(pred.sRNA))
+  #num_pred_UTR
+  num_pred_sRNA 
+  res <- c(num_pred_sRNA, num_sRNA_confirmed)
+  names(res) <- c('num_pred_sRNA', 'num_sRNA_confirmed')
+  
+  return(res)
+}
+
+# run function with BH run with default parameters (low=5,hi=10,min_srna=40,min_utr=50)
+res_5_10_1 <- compare_known_with_predicted(
+  annotation_file="BH_gffs_default/PRJNA327080_15.gff3", 
+  minoverlap=1L, 
+  known_RNA_file ="ncRNA_verified.txt"
+  )
+res_5_10_1
+res_5_10_5 <- compare_known_with_predicted(
+  annotation_file="BH_gffs_default/PRJNA327080_15.gff3", 
+  minoverlap=5L, 
+  known_RNA_file ="ncRNA_verified.txt"
+)
+res_5_10_10 <- compare_known_with_predicted(
+  annotation_file="BH_gffs_default/PRJNA327080_15.gff3", 
+  minoverlap=10L, 
+  known_RNA_file ="ncRNA_verified.txt"
+)
+res_5_10_20 <- compare_known_with_predicted(
+  annotation_file="BH_gffs_default/PRJNA327080_15.gff3", 
+  minoverlap=20L, 
+  known_RNA_file ="ncRNA_verified.txt"
+)
+res_5_10_50 <- compare_known_with_predicted(
+  annotation_file="BH_gffs_default/PRJNA327080_15.gff3", 
+  minoverlap=50L, 
+  known_RNA_file ="ncRNA_verified.txt"
+)
+res_5_10_5
+# Plot the results as barplots
+install.packages("ggplot2")
+library(ggplot2)
+v.y  <- c(res_5_10_5[1], res_5_10_5[2], res_5_10_10[2], res_5_10_20[2])
+v.labels <- c("predicted", "verified.5", "verified.10", "verified.20")
+v.type <- c(rep("sRNA", 4))
+df <- data.frame(cbind(v.labels, v.type, v.y))
+colnames(df) <- c("labels", "type", "num_predictions")
+df
+#put the v.types factor in the right order in the plot
+df$labels <- factor(df$labels, levels=c('predicted', 'verified.5', 'verified.10', 'verified.20'))
+# df$v.y is factor and needs to be numeric
+p <- ggplot(data=df, aes(x=type, y=as.numeric(as.character(num_predictions)), fill=labels)) +
+  geom_bar(stat="identity", position=position_dodge()) +
+  scale_y_continuous(limits=c(0, 2000)) +
+  #xlab("sRNA") +
+  ylab("Number of predictions") +
+  labs(fill='') +
+  scale_fill_grey() +
+  labs(title="Baerhunter (6-11) predictions", caption="verified.x = predictions with min x nt overlap with ncRNAs from verified list") +
+  theme(plot.caption = element_text(hjust=0.5))
+p
+
+head(df)
+```
+
+```{R}
+
+res_PRJNA278760_5 <- compare_known_with_predicted(
+  annotation_file="BH_gffs_default/PRJNA278760_22.gff3", 
+  minoverlap=5L, 
+  known_RNA_file ="ncRNA_verified.txt"
+)
+res_PRJNA278760_10 <- compare_known_with_predicted(
+  annotation_file="BH_gffs_default/PRJNA278760_22.gff3", 
+  minoverlap=10L, 
+  known_RNA_file ="ncRNA_verified.txt"
+)
+res_PRJNA278760_20 <- compare_known_with_predicted(
+  annotation_file="BH_gffs_default/PRJNA278760_22.gff3", 
+  minoverlap=20L, 
+  known_RNA_file ="ncRNA_verified.txt"
+)
+res_PRJNA278760_50 <- compare_known_with_predicted(
+  annotation_file="BH_gffs_default/PRJNA278760_22.gff3", 
+  minoverlap=50L, 
+  known_RNA_file ="ncRNA_verified.txt"
+)
+res_PRJNA278760_10
+## pretty much all finding same low numbers of sRNAs, despite predicting loads
+## more with larger datasets. But my list isn't that long, 205 ncRNAs.
+```
+
+Work on different parameters to get these numbers close to others. Are others predicted sRNAs too high? finding spurious sites? see what happens if we change noise levels for these 'medium' depth--or has that been done already? If it reduces number predicted, but still finds the same number of verified sRNAs, then perhaps better (more precise/accurate)?
+
+DeJesus (2017) describes 'BS_finder' and uses a minimum read depth threshold of 500(!) to identify 5' end. Uses negative slope of read depth coverage in sliding window to determine 3' end.
+
+Very low number of predicted sRNAs for high depth dataset, PRJNA390669_12, and only matches about half of what the other sets find in the verified list. (like PRJNA278760_22)
+
+Eventually, would like BH to make percentile estimates for 5-50% and use number of reads at 40-50% to determine low cutoff. Not sure how high to make high cutoff, i.e. what is significant elevation from baseline? Will this vary between different sequencing depths? Try same low parameter and different high parameters for high depth sample.
+
+
+plan for medium-depth "typical" sample like PRJNA327080_15
+
+1)Run compare_covg_methods.R using low percentiles to get idea of read thresholds for running BH
+
+2)BH at diff parameters: default(5/10, already done), 40/60, 40/80, 50/80, 50/100 for medium depth (sample PRJNA327080_15)
+
+  (BH at diff parameters for high depth sample, PRJNA390669_12: 100/200, 180/320, 180/360, 200/300, 200/400)
+  
+  Write script for this? Start with extremes, move inward?
+  
+3)Check how many total sRNAs predicted and how many of 'verified' sRNAs identified with each set of parameters. should I make a test set of UTRs? what should I use: Does Laura have a list? There is a list from DeJesus (Table S5, already downloaded)
+
+-could also check list with known TSS's (they did this in paper work)?
+
+-Irilenia mentioned making heatmap comparing Jaccard coefficients of amount of overlap. How do I determine amount of overlap? findoverlap finds overlapping ranges, and takes minoverlap as input. Perhaps use minoverlap=1 and then determine overlap using something else once have list of overlapping ncRNAs?
+
+Jaccard coefficient determination
+The formula to find the Index is:  
+Jaccard Index = (the number in both sets) / (the number in either set) * 100
+The same formula in notation is:
+J(X,Y) = |X∩Y| / |X∪Y|  (intersection/union)
+J(X,Y) = num bases shared by both ranges / num bases total between both ranges * 100
+
+for GRanges, use 'intersect' and 'union' to determine these for each set
+
+```{bash run_baerhunter}
+module load R ##this is default v4.0.1
+```
+
+```
+>library(baerhunter)
+Error: package or namespace load failed for ‘baerhunter’:
+ package ‘baerhunter’ was installed before R 4.0.0: please re-install it
+> devtools::install_github("irilenia/baerhunter")
+Error: package ‘devtools’ was installed before R 4.0.0: please re-install it
+```
+
+try to install devtools and BH into R v4
+```{R}
+install.packages("devtools")
+#devtools::install_github("irilenia/baerhunter")
+```
+
+devtools install doesn't work--some dependencies not there, 
+```
+Error: package ‘callr’ was installed before R 4.0.0: please re-install it
+Execution halted
+ERROR: lazy loading failed for package ‘rcmdcheck’
+* removing ‘/d/in16/u/sj003/R_packages/rcmdcheck’
+
+Error: package ‘rlang’ was installed before R 4.0.0: please re-install it
+Execution halted
+ERROR: lazy loading failed for package ‘roxygen2’
+* removing ‘/d/in16/u/sj003/R_packages/roxygen2’
+ERROR: dependencies ‘rcmdcheck’, ‘roxygen2’ are not available for package ‘devtools’
+* removing ‘/d/in16/u/sj003/R_packages/devtools’
+```
+
+
+reload v3.5.2 and try installing bh again:
+```
+>devtools::install_github("irilenia/baerhunter")
+Error: package ‘S4Vectors’ 0.20.1 was found, but >= 0.25.14 is required by ‘IRanges’
+In addition: Warning message:
+package ‘IRanges’ was built under R version 4.0.1 
+
+>library(baerhunter)
+Warning: namespace ‘sessioninfo’ is not available and has been replaced
+by .GlobalEnv when processing object ‘dataset’
+Error: package or namespace load failed for ‘baerhunter’ in rbind(info, getNamespaceInfo(env, "S3methods")):
+ number of columns of matrices must match (see arg 2)
+ 
+> devtools::install_github("irilenia/baerhunter")
+Warning: namespace ‘IRanges’ is not available and has been replaced
+by .GlobalEnv when processing object ‘dataset’
+Error in rbind(info, getNamespaceInfo(env, "S3methods")) : 
+  number of columns of matrices must match (see arg 2)
+```
+
+I suspect problem is that IRanges has been updated and no longer works with Rv3.5.2,
+but devtools not working on v4. Get Dave to update devtools?
+
+re-loaded v4 and installed packages, callr (required install of 'processx')
+and rlang. Re-install devtools, still getting error (but just one now):
+
+```
+ERROR: dependency ‘rcmdcheck’ is not available for package ‘devtools’
+* removing ‘/d/in16/u/sj003/R_packages/devtools’
+```
+installed rcmdcheck (and first pkgbuild)
+
+```
+Error: package ‘usethis’ could not be loaded
+```
+when i loaded that, needed 'httr' will this be endless?
+
+
+Instead, back to R v3.5.2 and installing earlier iranges version
+(https://bioconductor.org/packages/3.8/bioc/html/IRanges.html)
+
+```
+if (!requireNamespace("BiocManager", quietly = TRUE))
+    install.packages("BiocManager")
+BiocManager::install("IRanges")
+```
+
+still no joy:
+
+```
+> library(baerhunter)
+Error: package or namespace load failed for ‘baerhunter’ in rbind(info, getNamespaceInfo(env, "S3methods")):
+ number of columns of matrices must match (see arg 2)
+> devtools::install_github("irilenia/baerhunter")
+Error in rbind(info, getNamespaceInfo(env, "S3methods")) : 
+  number of columns of matrices must match (see arg 2)
+```
+
+had selected 'n' when asked if wanted to update packages. Did again and chose 'a'
+Still have same error--now problems loading another source package, 'DT'. 
+
+I think way forward is to ask Dave to install devtools on R on server instead of 
+in personal library?
+
+tried one more thing on earlier version, install earlier S4Vectors:
+(https://bioconductor.org/packages/3.8/bioc/html/S4Vectors.html)
+
+```
+BiocManager::install("S4Vectors")
+
+Error in rbind(info, getNamespaceInfo(env, "S3methods")) : 
+  number of columns of matrices must match (see arg 2)
+ERROR: lazy loading failed for package ‘DT’
+```
+
+Can I do something about DT? (DataTables source package)!

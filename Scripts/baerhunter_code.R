@@ -75,6 +75,7 @@ peak_union_calc <- function(bam_location = ".", target_strand, low_coverage_cuto
     ## at this point we could determine coverage quantiles and use 5% (?) threshold 
     ## to establish parameters for selecting boundaries of expression peaks
     
+    #viewApply is IRanges method
     
     ## Cut the coverage vector to obtain the expression peaks with the coverage above the low cut-off values.
     peaks <- slice(strand_cvg[[target]], lower = low_coverage_cutoff, includeLower=TRUE)
@@ -96,11 +97,11 @@ peak_union_calc <- function(bam_location = ".", target_strand, low_coverage_cuto
 #' 
 #' This is a helper function that is used to examine if the peak had a continuous stretch of a given width that has coverage above the high cut-off value.
 #' 
-#' @param View_line A line from a RIeViews object.
+#' @param View_line A line from a RleViews object.
 #' @param high_cutoff An integer indicating the high coverage threshold value.
-#' @param min_sRNA_length An interger indicating the minimum sRNA length (peak width).
+#' @param min_sRNA_length An integer indicating the minimum sRNA length (peak width).
 #' 
-#' @return Returns a RIeViews line if it satisfies conditions.
+#' @return Returns a RleViews line if it satisfies conditions.
 #' 
 #' @export
 peak_analysis <- function(View_line, high_cutoff, min_sRNA_length) {
