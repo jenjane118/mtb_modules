@@ -576,5 +576,8 @@ This seems to work. work out coverage plots for cds only.
 
 ![boxplot for coverage percentiles for cds only](Images/boxplot_PRJNA390669_cds.png)
 
+13 Feb 2020
 
+HOw to tell if rna-seq data comes from stranded/unstranded library.
 
+Use salmon

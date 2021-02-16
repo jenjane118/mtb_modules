@@ -1,0 +1,485 @@
+---
+title: "Creating a conda environment"
+output: html_notebook
+---
+
+This is an [R Markdown](http://rmarkdown.rstudio.com) Notebook. 
+
+Jennifer J Stiens
+
+10/11/2020
+
+[Anaconda using R](https://docs.anaconda.com/anaconda/user-guide/tasks/using-r-language/)
+
+**Installed Anaconda**
+
+```{bash}
+wget https://repo.anaconda.com/archive/Anaconda3-2020.11-Linux-x86_64.sh
+```
+
+Checksums ok
+
+Installed into /d/in16/u/sj003/
+modified .bashrc is in home directory: ~/.bashrc
+
+```{bash}
+#initialise conda
+source ~/.bashrc
+# set so base env automatically on (change to False if want to run from anywhere without base env activated)
+conda config --set auto_activate_base True
+```
+
+**Create BH (baerhunter) environment**
+
+```{bash}
+#Create new environment
+conda create -n BH
+
+#==> WARNING: A newer version of conda exists. <==
+#  current version: 4.8.3
+#  latest version: 4.9.1
+
+#Please update conda by running
+
+#    $ conda update -n base -c defaults conda
+
+# To activate this environment, use
+#
+#     $ conda activate BH
+#
+# To deactivate an active environment, use
+#
+#     $ conda deactivate
+
+conda update -n base -c defaults conda
+
+# switch to BH env
+conda activate BH
+# add channels to env (this order is important--last one is first that is searched
+# for new packages)
+conda config --add channels defaults
+conda config --add channels bioconda
+conda config --add channels conda-forge
+# install packages into BH env
+conda install r=3.5.1 r-essentials
+
+# can't find this in channels I've already installed. I guess I need to install the R env when I create channel
+## delete and start over
+conda deactivate
+conda remove --name BH --all
+
+#from blog: https://alexanderlabwhoi.github.io/post/anaconda-r-sarah/
+conda create -n BH -c r r=3.5.2 r-essentials  
+# still not found in current channels
+#PackagesNotFoundError: The following packages are not available from current channels:
+#  - r=3.5.2
+# checkedhttps://conda.anaconda.org/r/linux-64 and found 3.5.1
+conda create -n BH -c r r=3.5.1 r-essentials
+# try different order?
+conda create -n BH -c r r-essentials r=3.5.1
+conda create -n BH -c r r=3.5.1
+# i'm not sure about '=' sign, on website commands look like this:
+conda create -n BH r-essentials r-3.5.1
+#UnavailableInvalidChannel: The channel is not accessible or is invalid.
+#  channel name: r-essentials
+#  channel url: https://conda.anaconda.org/r-essentials
+#  error code: 404
+
+#create and activate again
+conda create -n BH
+conda activate BH
+conda install -c r r=3.5.1
+# this seems to be working but installing a lot of packages
+
+```
+
+All channels seemed to be already loaded, even though I did that before I removed env,
+so maybe that applies to all environments?
+
+```{bash}
+#install necessary packages
+conda install -c r r-devtools
+# I think I may have needed to specify which version like below
+#conda install -c r r=3.5.1 rstudio
+# remove and do again with version?
+conda remove r-devtools
+conda install -c r r=3.5.1 r-devtools   ##don't do this--will find compatible version
+```
+Will tools from bioconda install the compatible version for my env?
+![Search this website for commands for installation](https://anaconda.org/bioconda/bioconductor-genomicalignments)
+
+```{bash}
+# conda install -c bioconda bioconductor-genomicranges #not sure I need this 
+conda install -c bioconda bioconductor-genomicalignments  #done
+conda install -c bioconda bioconductor-iranges            #done
+
+#conda install -c bioconda bioconductor-rsubread #do i need this?
+conda install -c bioconda bioconductor-rsamtools #done
+
+```
+
+from:
+[Keeping my R life organized: Partitioning R versions using conda environments](https://alexanderlabwhoi.github.io/post/anaconda-r-sarah/)
+
+    "When you are ready to install a package, make sure you are in the conda environment 
+    with whatever R version you want the package installed and type 
+    conda install -c r r-PACKAGENAME. 
+    This approach to R package installs is life changing, especially if you’re all too 
+    familiar with non-zero exit status or random failures when attempting to install 
+    R packages."
+
+This takes a long time to resolve conflicts.
+"Found conflicts! Looking for incompatible packages."
+
+to check which packages installed in environment
+```{bash}
+conda list
+```
+
+not sure about uploading baerhunter to env. Can just use in R (as devtools is installed):
+
+```
+devtools::install_github("irilenia/baerhunter", dependencies=FALSE)
+```
+should avoid updating dependencies in conda env this way. 
+
+(https://stackoverflow.com/questions/52061664/install-r-package-from-github-using-conda)
+Otherwise, can build own 'conda skeleton' of baerhunter, and then upload to env.
+
+```{bash}
+conda skeleton cran https://github.com/irilenia/baerhunter
+
+conda build --R=3.5.1
+```
+
+maybe ask Irilenia about building this.
+
+next day, not recognising conda, had to re-do command:
+```{bash}
+source ~/.bashrc 
+conda activate BH
+# or should this be ?
+#source activate BH
+```
+
+Should I put this in /d/in16/u/sj003/ profiles, or make new .bashrc in this folder?
+(https://askubuntu.com/questions/908827/variable-path-issue-conda-command-not-found)
+
+Start R session in BH env and check that correct version (3.5.1) is running. Yes.
+
+```{R}
+library(devtools)
+devtools::install_github("irilenia/baerhunter", dependencies=FALSE)
+
+```
+    
+    ERROR: dependencies ‘Rsubread’, ‘DESeq2’ are not available for package ‘baerhunter’
+    * removing ‘/d/in16/u/sj003/R_packages/baerhunter’
+    Installation failed: Command failed (1)
+
+install Rsubread and DESeq2 as well, and then try again with above. Same error? 
+I think I need to quit and re-activate first?
+
+```{bash}
+conda install -c bioconda bioconductor-rsubread
+conda install -c bioconda bioconductor-deseq2 
+
+# tried activating new env to make sure all packages active?
+source activate BH
+# check if things are installed (does this do this or just that are available?)
+conda search *rsubread*
+conda search *deseq2*
+# shows what is installed/available in active env
+conda list
+#this says genomic ranges is a dependency, so will install that first
+conda install -c bioconda bioconductor-genomicranges
+# then redo deseq2 install and try again with bh? could I just make new scripts 
+# of functions and do manually?
+```
+
+found this on (https://docs.conda.io/projects/conda/en/latest/user-guide/tasks/manage-pkgs.html):
+'It is best to install all packages at once, so that all of the dependencies are installed at the same time.'
+
+I don't see any of the above packages (exceprt for devtools) installed in my env. so I will delete and create again? Too many conflicts/incompatible packages? Also, maybe try for r-essentials instead
+of complete R package?
+
+I checked in R for library(IRanges) etc for the packages I thought i'd installed, 
+but they arent' there. this error occurred for Genomic Alignments and IRanges:
+
+    Error: package ‘BiocGenerics’ required by ‘IRanges’ could not be found
+
+Do I need to install BiocGenerics as well?
+```{bash}
+conda install -c bioconda bioconductor-biocgenerics
+```
+
+
+```{bash}
+#create new env with R v3.5 ('fuzzy' indication of r=3.5 means any version beginning 
+#with 3.5)
+conda create -n r_3.5 -c r r=3.5 r-essentials
+
+#Warning--this takes forever.
+# failed after disconnected to server
+
+#does take a long time for r-essentials acc to internet.
+# this might be faster: conda install -c conda-forge r r=3.5 r-essentials 
+#(obvs after creating env)
+
+```
+
+Given how long it is taking, if it fails, also could just remove all things I've installed on BH env? But they aren't there anyway (except for devtools)? maybe try to add all of them at same time and see if that works better?
+
+```{bash}
+conda install -c bioconda bioconductor-biocgenerics bioconductor-iranges bioconductor-rsamtools bioconductor-rsubread bioconductor-genomicalignments bioconductor-genomicranges
+```
+
+I'm still a little worried that the problem is the inflexible r=3.5.1 rather than
+any 3.5 package? 
+
+I think maybe devtools is messing with everything else. Try removing devtools and
+and then reinstall. Also, didn't install r-essentials (was same problem of taking 
+hours as before, so will necessary r package dependencies be there?)
+
+```{bash}
+conda activate BH
+conda remove r-devtools
+conda install -c bioconda bioconductor-biocgenerics bioconductor-iranges bioconductor-rsamtools bioconductor-rsubread bioconductor-genomicalignments bioconductor-genomicranges
+# this is in BH env
+```
+
+still shows a lot of conflicts. Try again with new env and R
+Supposedly, R from conda-forge will have less conflicts than r from r and other 
+packages from conda-forge.
+
+```{bash}
+# either create env first and then install r
+#conda create -n r3_5
+#source activate r3_5
+#conda install -c conda-forge r r=3.5 r-essentials
+
+# or create and install at the same time
+conda create -n r_3.5 -c conda-forge r r=3.5 r-essentials
+```
+
+http://salvatoregiorgi.com/blog/2018/10/16/installing-an-older-version-of-r-in-a-conda-environment/
+
+Still hanging on install
+
+https://github.com/conda/conda/issues/8051
+Removing the conda-forge channel appears to remove this behavior and it continues to work after add conda-forge.
+
+The following steps worked to resolve the issue.
+
+```{bash}
+conda config --remove channels conda-forge
+conda config --add channels conda-forge
+
+conda create -n r_3.5
+#tried this and it created a channel immediately (last time took a long time and I quit)
+conda install -c conda-forge r=3.5.1
+# still hanging at 'solving environment'
+#3.5.1 available from conda-forge, no 3.5.2. 3.5.3 available from r, maybe should
+# try that one? (3.5.2 was the older version available on thoth)
+
+#removed env and recreated
+conda create -n r_3.5
+conda activate r_3.5
+conda install -c r r=3.6        #3.5.3 not available on r
+# this occurs quickly (but Ithink it did first time, for BH too)
+#install packages from bioconductor
+conda install -c bioconda bioconductor-iranges bioconductor-genomicalignments bioconductor-genomicranges
+# this seems to work! now try other two...
+conda install -c bioconda bioconductor-rsamtools bioconductor-rsubread
+# this worked too!
+# I think doing devtools last is really important
+conda install r-devtools
+```
+
+
+```{r}
+library(devtools)
+#Loading required package: usethis
+#Error: package or namespace load failed for ‘usethis’ in dyn.load(file, DLLpath = DLLpath, #...):
+# unable to load shared object '/d/in16/u/sj003/R_packages/rlang/libs/rlang.so':
+#  /d/in16/u/sj003/R_packages/rlang/libs/rlang.so: undefined symbol: R_removeVarFromFrame
+#Error: package ‘usethis’ could not be loaded
+```
+
+try loading a conda-forge version of devtools instead?
+
+```{bash}
+conda remove r-devtools
+conda install -c conda-forge r-devtools
+```
+
+Hope taking out and putting back in doesn't mess up env!
+Same error. 
+may have to load up baerhunter with skeleton instead of devtools. 
+
+```{r}
+library(GenomicAlignments)
+#Error: package ‘S4Vectors’ 0.20.1 was found, but >= 0.25.14 is required by ‘GenomicAlignments’
+#In addition: Warning message:
+#package ‘GenomicAlignments’ was built under R version 4.0.1 
+library(GenomicRanges)
+#Error: package ‘S4Vectors’ 0.20.1 is loaded, but >= 0.23.19 is required by ‘GenomicRanges’
+#In addition: Warning message:
+#version 0.24.0 of ‘S4Vectors’ masked by 0.20.1 in /d/in16/u/sj003/R_packages 
+```
+
+This is exact same error I get on server outside of conda!
+Just get rid of devtools for now and then try to load up GenomicAlignments.
+Same error. 
+Rsubread, IRanges work fine. problems with GenomicAlignments, GenomicRanges
+maybe reinstall s4vectors? or update?
+
+```{bash}
+conda update bioconductor-s4vectors
+# All requested packages already installed.
+conda list bioconductor
+#bioconductor-s4vectors    0.24.0            r36h516909a_0    bioconda
+```
+
+I'm thinking the fact it is 'masked' by version in R_packages, means it is for some 
+reason looking there. I should move that file somewhere else or change path so it
+doesn't look there.
+
+.Renviron file
+```
+R_LIBS = /d/in16/u/sj003/R_packages
+```
+I will comment out this file and see what happens
+That appears to work! I tried some genomic alignments commands and they work
+
+reload devtools
+
+```{bash}
+conda install -c conda-forge r-devtools
+#tried to install bh on R, need DESeq2!
+conda install -c bioconda bioconductor-deseq2
+```
+
+```{r}
+devtools::install_github("irilenia/baerhunter")
+##success!!!!
+library(baerhunter)
+```
+
+```{bash}
+nohup R CMD BATCH $my_path/scripts/BH_make_gff.R &
+```
+
+This doesn't work because running in my other version of R installed. Need to activate
+conda env in script? Or perhaps just load RStudio acc to instructions in post and
+then run program in R instead of via bash script? --probably easiest, but won't 
+have nohup options.
+
+Install rstudio:
+
+```{bash}
+conda install -c r r=3.6.3 rstudio
+# this package doesn't exist, shouldn't it install correct version anyway?
+conda install -c r rstudio
+#check by launching rstudio, should start by listing same version of R that we are
+#using in this env (3.6.3)
+rstudio
+# actually launching 3.6.1? 
+#added this line to ~/.bashrc
+alias rstu3.6="RSTUDIO_WHICH_R=/d/in16/u/sj003/anaconda3/envs/r_3.5/bin/R source ~/.bashrc"
+source ~/.bashrc  #to add command to current terminal session
+# must change back to r_3.5 env as it puts back in base
+conda activate r_3.5
+# to launch rstudio (in correct env)
+rstu3.6
+# this alias doesn't work, open -a is invalid command. Not sure I need the alias,
+#as rstudio opens using correct R package from inside env with 'rstudio' command.
+```
+
+just loaded up BH_make_gff.R into Rstudio and ran from there. Takes a long time
+for this program, so hope I don't get cut off from server before it's over.
+Maybe write script that first, binds conda to its shell, and then starts your program.
+But this would be an R script inside of a shell script run on nohup. Is that the 
+easiest way?
+
+```{bash run_R_script}
+#!/bin/bash
+source activate my_env && R CMD BATCH $my_path/scripts/BH_make_gff.R
+# might want to use Rscript instead of R CMD BATCH which is evidently old and not
+# used anymore
+```
+
+then call script above using nohup?
+nohup run_R_script &
+
+don't forget to install outside packages like BH with dependencies=FALSE
+
+```{r}
+library(devtools)
+devtools::install_github("irilenia/baerhunter", dependencies=FALSE)
+```
+
+Removed baerhunter libraries from r_3.5 env
+```{r}
+remove.packages("baerhunter", "/d/in16/u/sj003/anaconda3/envs/r_3.5/lib/R/library")
+
+# rearranged library in different order--not sure if it makes difference, and re-installed baerhunter with dependencies=FALSE and library(baerhunter) last.
+
+# test on smaller 3 sample set first (for time)
+
+```
+
+new error message:
+Error: lazy-load database '/d/in16/u/sj003/anaconda3/envs/r_3.5/lib/R/library/baerhunter/R/baerhunter.rdb' is corrupt
+In addition: Warning messages:
+1: restarting interrupted promise evaluation 
+2: internal error -3 in R_decompress1 
+
+removed and reinstalled baerhunter without dependencies=FALSE:
+Same error.
+
+
+Try new environment without loading genomic ranges, or with loading iranges last. Then try installing bh without dependencies from start.
+
+
+**Creating a new conda environment with r for Baerhunter**
+
+```{bash}
+conda create -n r_3.6
+conda activate r_3.6
+conda install -c r r=3.6
+# install without genomic ranges (i think this is a dependency of genomic alignments, but may install on its own? last package installed should override first, in terms of function names, so iranges after genomic alignments?)
+conda install -c bioconda bioconductor-genomicalignments bioconductor-iranges bioconductor-rsamtools bioconductor-rsubread
+# did definitely install genomic ranges with genomic alignments
+# also need deseq2 (forgot)
+conda install -c bioconda bioconductor-deseq2
+conda install -c conda-forge r-devtools
+# check what version of R is running and install r studio
+conda install -c r rstudio
+```
+
+This was very quick and straightforward. Only step that took a while was installing rstudio (hanging for a little while at solving step), but still a few minutes only.
+I did reload baerhunter with devtools using dependencies=FALSE argument and that worked fine.
+
+None of this helped, or was necessary, for the "match" bug. Re-defined all functions in feature_file_editor script and ran again and it worked. Will delete all other envs and keep r_3.6 for baerhunter work.
+
+Difficulty building new conda env for R 4.0. Rstudio would not install (hanging for hours).
+
+In order to run scripts with nohup in correct environment, made shell script:
+
+```{bash conda_shell}
+#!/bin/bash
+source ~/.bashrc
+conda activate r_3.6
+R CMD BATCH /d/in16/u/sj003/scripts/bh_run_ffe.R 
+```
+
+Then run two commands:
+```{bash}
+chmod +x scripts/run_conda_r.sh
+nohup scripts/run_conda_r.sh >& run_conda_r.out &
+# definitely needed >& <filename>, or it looked for terminal and stopped job
+```
+
+Definitely running correct version of R, and baerhunter.
+

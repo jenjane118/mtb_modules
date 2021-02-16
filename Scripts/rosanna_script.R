@@ -1,4 +1,4 @@
-Comparing GFF3 files. The created GFF3 files were compared for similarity, the code for subsetting ncRNAs and the Jaccard Index code were obtained from baerhunter scripts.
+#Comparing GFF3 files. The created GFF3 files were compared for similarity, the code for subsetting ncRNAs and the Jaccard Index code were obtained from baerhunter scripts.
 
 #r comparing .GFF3 files which were created using feature_file_editor of baerhunter package
 
@@ -107,23 +107,23 @@ ggplot(data=df, aes(x=x), xlab="width n") +
   geom_line(aes(y = ranges_witdth_he1616, colour = "E-GEOD-47863")) +
   geom_line(aes(y= ranges_width_he67035, colour="E-GEOD-67035"))
 
-Merging GFF3 files to obtain a representative file. The following lines were written where BEDOPS was used to convert GFF3 files to BED files so that BEDtools intersect could be used to merge putative feature ranges in the 3 GFF3 files.
+#Merging GFF3 files to obtain a representative file. The following lines were written where BEDOPS was used to convert GFF3 files to BED files so that BEDtools intersect could be used to merge putative feature ranges in the 3 GFF3 files.
 #BEDOPS was used to convert the GFF3 file to a BED file
-Gff2bed < gff1 > gff1.bed
+#Gff2bed < gff1 > gff1.bed
 #grep desired features from each GFF3 file, eg:
-Grep “putative_sRNA” gff1.bed > sRNAs_gff1.bed
+#Grep “putative_sRNA” gff1.bed > sRNAs_gff1.bed
 #BEDtools intersect was used with parameter choices:
 # -s to force strandedness
-bedtools intersect -s -a high_exp_47863.bed -b high_exp_67035.bed high_exp_1616.bed > combined_u.bed
+#bedtools intersect -s -a high_exp_47863.bed -b high_exp_67035.bed high_exp_1616.bed > combined_u.bed
 #obtain putative features that are not overlapping with intersections:
-Bedtools intersect -s -v -a bed_file.bed -b bed_file2.bed bed_file3.bed > file1_exclusive_ncRNAs.bed
+#Bedtools intersect -s -v -a bed_file.bed -b bed_file2.bed bed_file3.bed > file1_exclusive_ncRNAs.bed
 
 #cat the file containing intersections to the original annotation file
 #cat the files with exclusively expressed features to this file, sort based on genomic ranges, and then order the columns to convert back to GFF3 file
 
-Sort -nk2 combined_features.bed > sorted_combined_features.bed
+#Sort -nk2 combined_features.bed > sorted_combined_features.bed
 
-awk '{ print $1 "\t" $7 "\t" $8 "\t" $2 "\t" $3 "\t" $5 "\t" $6 "\t" $9 "\t" $10 }' sorted_combined_features.bed > combined_features.gff3
+#awk '{ print $1 "\t" $7 "\t" $8 "\t" $2 "\t" $3 "\t" $5 "\t" $6 "\t" $9 "\t" $10 }' sorted_combined_features.bed > combined_features.gff3
 
 
 ##### R was used to change base-0 format of BED start coordinates of ranges to base-1 format used in GFF3
@@ -136,8 +136,8 @@ export.gff3(gf, "combined_mtb_5_10.gff3")
 #baerhunter was run here in the same way as above, now with the representative GFF3 file. This produced a final count matrix.
 
 #the following script was written in R to normalise the data and visualise it. 
-Normalising the count matrix.
-‘’’{r counts}
+#Normalising the count matrix.
+#‘’’{r counts}
 #script to carry out DEseq2's VST normalisation on count matrix
 #load libraries
 if (!requireNamespace("BiocManager", quietly = TRUE))

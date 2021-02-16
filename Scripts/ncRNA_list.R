@@ -3,7 +3,7 @@ library(dplyr)
 #add annotations from Arnvig, 2014 to dataframe
 arnvig_table <-
   read.delim(
-    "Arnvig_ncRNA_2014.csv",
+    "Data/Arnvig_ncRNA_2014.csv",
     sep = ",",
     header = TRUE,
     stringsAsFactors = F
@@ -357,8 +357,7 @@ colnames(TSS_fwd)<-c("TSS")
 
 # make dataframe
 f_dist_to_total<-NULL
-f_dist_to_total <-
-  as.data.frame(G_fwd_gr[queryHits(tss_nearest_fwd)])
+f_dist_to_total <- as.data.frame(G_fwd_gr[queryHits(tss_nearest_fwd)])
 f_dist_to_total<- cbind(f_dist_to_total, dist_to_tss, TSS_fwd)
 f_dist_to_total$end<-gerrick_fwd_df$stop
 #remove column 'width'

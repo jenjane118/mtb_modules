@@ -1,0 +1,94 @@
+---
+title: "Making list of verified ncRNAs"
+output: html_notebook
+---
+
+GFF file in mycobrowser has 92 'stable RNAs' listed, but only 19 have RACE and/or
+northern blot. Which of these 'supported by sRNA-seq' have TSSs mapped? no information
+on site.
+
+Use list in mycobrowser and find how many are 1)verified by RLM-RACE and/or northern blot, 2) TSS mapping
+
+
+1) 19 are either/both Northern verified or 5' end-mapped. There may be more acc to ARnvig 2014? "~/Mycobacteria_project/ncRNA/verified_myco.txt"
+
+
+2) Calculated positions of TSS in stable rnas from mycobacteria (all 92) and made
+new list for making a table in lit review
+git/mtb_modules/Data/stable_rna_myco.txt
+git/mtb_modules/Scripts/TSS_verified_gerrick.R
+
+This list includes 50 'stable RNAs' that have been verified through either: TSS-mapping, RLM-RACE or Northern blot. Includes many that have been found with rna-seq/TSS only.
+
+"git/mtb_modules/Data/verified_list_review.txt"
+
+
+What about those sRNAs that come from inside 5' or 3' UTRs through cleavage? may not have TSSs but have cleavage sites. Martini predicts motif for cleavage sites in msmeg, can we look for this?
+
+maybe need to include non-tss sRNAs in list? how else can we verify?
+
+RFAM database has 10 families, 11 sequence entries for sRNAsF:
+
+(4) Mcr7, Ms1, B55, F6 included in tuberculist list and TSS
+
+(2) In tuberculist annotation, but no TSS:
+
+'ncrMT1302'/ncRv11264c/MTB000130 1413227:1413105 (Pelly 2012) same as DeJesus, 2017, but slightly different end coordinates
+
+MTB000053/'ASdes' 918432:918365 (Arnvig 2009)
+
+(5) Not in tuberculist, is there a TSS?
+
+'npcTb_6715' 2152648:2152437, no reference, no structures, just alignment? On wiki page it says '1st sRNA as a potential biomarker for MTB' but no reference? Says 38 species so perhaps found with homology search? not assigned to a family (TSS at 2152896, -)
+
+'ncRv12659'/MTS2048, 2980911:2981082, (Houghton, 2013) "transcript originates within a prophage and is expressed only in strains that carry PhiRv2. The small RNA contains both host and phage sequences"  Does this mean not a 'stable RNA'? 
+
+'ASdes' 1222344:1222277, (Arnvig, 2009) same name as above--has conserved structure, belongs to 'family' ASdes, RF01781
+
+I am including this. Sometimes referred to as 'antisense' RNA, but also seems to function as structured sRNA. Not sure about 'ASpks' which is also in RFAM as a structured family, but only sequence listings are as 'antisense RNA'? Adding in ASpks as it is experimentally verified in mtb and has predicted structure
+
+'Ms_AS_5' 3439753:3439709, (Li et al 2013) found with heterologous Hfq in msmeg, sequence alignment in mtb (no TSS nearby), not including because in msmeg and not verified in mtb
+
+'5'UreB_sRNA' 2098417:2098123, (Wen, 2013), 100% sequence match. found in h.pylori. has it been identified in other screens? (not in tuberculist, so presumably not dejesus/gerrick) not including since not verified in mtb by northern or computational
+at 2097122,2099566, -, but pretty far)
+
+Have found that C8, ASdes and ASpks are listed in ARnvig, 20
+
+
+3) Look at presrat predictions for 'non-genic' sRNAs in mtb. Provide only start/end positions. perhaps use genomic ranges to look at overlap with predicted list from mycobrowser (stable rna) or gerrick?
+
+git/mtb_modules/Data/non-genic_presrat_mtb.txt
+418 predictions
+
+put in dataframe: start,end,strand,rank
+
+Only found 7 overlapping 10 nt or more:
+
+```
+
+> myco_hits
+seqnames   start     end width strand      name
+1    H37Rv  530246  530353   108      - ncRv0441c
+2    H37Rv  733361  733459    99      + ncRv10637
+3    H37Rv  734118  734244   127      +  ncRv0638
+4    H37Rv  958459  958509    51      + ncRv10860
+5    H37Rv 1455386 1455461    76      +  ncRv1298
+6    H37Rv 1455406 1455461    56      + ncRv11298
+7    H37Rv 1952291 1952503   213      -    AS1726
+
+> pres_hits
+  seqnames   start     end width strand rank
+1    H37Rv  526548  530870  4323      -  114
+2    H37Rv  729413  735528  6116      +  105
+3    H37Rv  729413  735528  6116      +  105
+4    H37Rv  950709  963097 12389      +  322
+5    H37Rv 1452614 1456775  4162      +  211
+6    H37Rv 1452614 1456775  4162      +  211
+7    H37Rv 1950019 1954780  4762      -  104
+```
+
+Really these are just very low ranked and have really long sequences that are just likely to overlap something somewhere. Not likely to be true sRNAs.
+
+
+there are also predictions for bovis bcg for SIPHT, but not sure if coordinates match?
+

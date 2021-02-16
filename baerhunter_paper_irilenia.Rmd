@@ -1,0 +1,1023 @@
+ 
+---
+title: "Example run of baerhunter on real RNA-seq data (using multiple cut-offs)"
+author: "Irilenia Nobeli"
+date: "2019/07/25"
+output: html_document
+
+---
+
+This markdown script is an example of how to run *baerhunter*; this is an R package that allows the user to build a list of putative non-coding RNAs from stranded RNA-seq data and add them to an existing genome annotation so that downstream analysis can be carried out on both coding and (putative) non-coding transcripts found in intergenic regions. 
+
+In this example walkthrough, we reproduce the real-data analysis presented in the *baerhunter* paper. The data originate from the Cortes et al. (2013) RNA-seq dataset (E-MTAB-1616). There is a separate R markdown document that reproduces the results of the analysis of simulated RNA-seq data.
+
+Reference
+A. Ozuna, D. Liberto, R. M. Joyce, K.B. Arnvig, I. Nobeli. baerhunter: An R package for the discovery and analysis of expressed non-coding regions in bacterial RNA-seq data.
+
+```{r "knitr config", cache = FALSE, include=FALSE}
+require("knitr")
+opts_chunk$set(echo = TRUE)
+# Set the root directory to the project directory so all paths
+# that follow will be relative to that directory
+opts_knit$set(root.dir = "../")
+```
+
+```{r setup, include=FALSE}
+library("Rsubread")
+library("Rsamtools")
+library("rtracklayer")
+library("ggplot2")
+# install and load the baerhunter package
+library("devtools")
+#install_github("irilenia/baerhunter")
+library("baerhunter")
+```
+
+## Quick summary of baerhunter
+A typical *baerhunter* run will involve the following steps:
+* Map reads to the genome
+* Re-annotate the feature files to include expressed intergenic features and UTRs
+* Count reads against new annotation
+* Carry out downstream analysis (here differential expression analysis of both coding genes and non-coding RNAs)
+
+### Required directory setup
+This script assumes a certain directory structure and it also assumes the existence of a number of files. For information on how to set this up and where to download the files required, read carefully the README file in the *baerhunter_paper* repository.
+
+
+## Mapping reads to the genome
+Normally, analysis would start with pre-processing the raw RNA-seq data and mapping the reads to a reference genome. This step is skipped here as reads have already been aligned using the aligner bwa (dataset E-MTAB-1616).
+
+```{r map_reads_to_genome}
+# Step skipped...
+```
+
+## Updating the genome annotation using the RNA-seq signal
+We start by calling baerhunter's *feature_file_editor()* function to predict intergenic elements (sRNAs and UTRs) based on the RNA-seq signal and existing annotation (available as a gff3 file).
+The bam files used in this analysis will be under the data/mapping/E-MTAB-1616 directory if the required data has been downloaded and unpacked as advised in the README file. 
+
+```{r update_the_genome_annotation}
+# Call baerhunter's feature_file_editor()
+feature_file_editor(bam_directory="data/mapping/E-MTAB-1616/",  
+                    original_annotation_file="Mycobacterium_tuberculosis_h37rv.ASM19595v2.40.chromosome.Chromosome.gff3",
+                    annot_file_dir = "./data/",
+                    output_file="output/real_data/mtb_5_10.gff3", 
+                    original_sRNA_annotation="ncRNA", 
+                    low_coverage_cutoff=5, 
+                    high_coverage_cutoff=10, 
+                    min_sRNA_length=40, 
+                    min_UTR_length=50, 
+                    paired_end_data=FALSE, 
+                    strandedness="stranded")
+# REPEAT for all cut-offs
+feature_file_editor(bam_directory="data/mapping/E-MTAB-1616/",  
+                    original_annotation_file="Mycobacterium_tuberculosis_h37rv.ASM19595v2.40.chromosome.Chromosome.gff3",
+                    annot_file_dir = "./data/",
+                    output_file="output/real_data/mtb_5_20.gff3", 
+                    original_sRNA_annotation="ncRNA", 
+                    low_coverage_cutoff=5, 
+                    high_coverage_cutoff=20, 
+                    min_sRNA_length=40, 
+                    min_UTR_length=50, 
+                    paired_end_data=FALSE, 
+                    strandedness="stranded")
+feature_file_editor(bam_directory="data/mapping/E-MTAB-1616/",  
+                    original_annotation_file="Mycobacterium_tuberculosis_h37rv.ASM19595v2.40.chromosome.Chromosome.gff3",
+                    annot_file_dir = "./data/",
+                    output_file="output/real_data/mtb_2_10.gff3", 
+                    original_sRNA_annotation="ncRNA", 
+                    low_coverage_cutoff=2, 
+                    high_coverage_cutoff=10, 
+                    min_sRNA_length=40, 
+                    min_UTR_length=50, 
+                    paired_end_data=FALSE, 
+                    strandedness="stranded")
+feature_file_editor(bam_directory="data/mapping/E-MTAB-1616/",  
+                    original_annotation_file="Mycobacterium_tuberculosis_h37rv.ASM19595v2.40.chromosome.Chromosome.gff3",
+                    annot_file_dir = "./data/",
+                    output_file="output/real_data/mtb_2_20.gff3", 
+                    original_sRNA_annotation="ncRNA", 
+                    low_coverage_cutoff=2, 
+                    high_coverage_cutoff=20, 
+                    min_sRNA_length=40, 
+                    min_UTR_length=50, 
+                    paired_end_data=FALSE, 
+                    strandedness="stranded")
+```
+
+## Counting reads against the new annotation produced by baerhunter
+Once new putative ncRNA features are added to the genome annotation, we use the *count_features()* function to count reads against both the original and newly annotated features.
+
+### NOTE 
+The Cortes dataset did not have the rRNA depleted. As shown from the results of counting, about 80% of the reads map to rRNA genes in this case.
+
+```{r count_reads_against_features}
+# Call count_features() function
+system("mkdir output/real_data/mtb_5_10")
+count_features(bam_dir = "data/mapping/E-MTAB-1616/",
+               annotation_dir= "./output/real_data/", 
+               annotation_file = "mtb_5_10.gff3", 
+               output_dir = "output/real_data/mtb_5_10/",
+               chromosome_alias_file = "data/chromosome.txt" , 
+               target_features = c("gene", "rRNA_gene", "ncRNA_gene", "putative_sRNA", "putative_UTR"), 
+               strandedness = "stranded", 
+               is_paired_end= FALSE)
+# REPEAT for all cut-offs
+system("mkdir output/real_data/mtb_5_20")
+count_features(bam_dir = "data/mapping/E-MTAB-1616/",
+               annotation_dir= "./output/real_data/", 
+               annotation_file = "mtb_5_20.gff3", 
+               output_dir = "output/real_data/mtb_5_20/",
+               chromosome_alias_file = "data/chromosome.txt" , 
+               target_features = c("gene", "rRNA_gene", "ncRNA_gene", "putative_sRNA", "putative_UTR"), 
+               strandedness = "stranded", 
+               is_paired_end= FALSE)
+system("mkdir output/real_data/mtb_2_20")
+count_features(bam_dir = "data/mapping/E-MTAB-1616/",
+               annotation_dir= "./output/real_data/", 
+               annotation_file = "mtb_2_20.gff3", 
+               output_dir = "output/real_data/mtb_2_20/",
+               chromosome_alias_file = "data/chromosome.txt" , 
+               target_features = c("gene", "rRNA_gene", "ncRNA_gene", "putative_sRNA", "putative_UTR"), 
+               strandedness = "stranded", 
+               is_paired_end= FALSE)
+system("mkdir output/real_data/mtb_2_10")
+count_features(bam_dir = "data/mapping/E-MTAB-1616/",
+               annotation_dir= "./output/real_data/", 
+               annotation_file = "mtb_2_10.gff3", 
+               output_dir = "output/real_data/mtb_2_10/",
+               chromosome_alias_file = "data/chromosome.txt" , 
+               target_features = c("gene", "rRNA_gene", "ncRNA_gene", "putative_sRNA", "putative_UTR"), 
+               strandedness = "stranded", 
+               is_paired_end= FALSE)
+```
+
+## Filtering predictions by level of expression
+Occasionally, it is preferred to filter out low-expressed transcripts, both because of noise in the RNA-seq data and because features with low expression are unlikely to be useful for further downstream analysis. The *tpm_flag_filtering()* function is used here to keep only putative ncRNAs with higher expression. 
+
+To filter transcripts by expression, we calculate first TPM (transcripts per million) values for each feature of interest using the *tpm_normalisation()* function, then add expression level flags to the annotation file and finally filter out transcripts with flags corresponding to lower expression values.
+
+```{r filtering_by_expression}
+# Filter out low expression putative sRNAs
+# Calculate TPM values
+tpm<- tpm_normalisation(count_table="output/real_data/mtb_5_10/putative_sRNA_Counts.csv", 
+                  complete_gff="output/real_data/mtb_5_10.gff3", 
+                  target_feature="putative_sRNA", 
+                  output_file="output/real_data/mtb_5_10/putative_sRNA_TPM.csv")
+#repeat for putative UTRs
+tpm <- tpm_normalisation(count_table="output/real_data/mtb_5_10/putative_UTR_Counts.csv", 
+                  complete_gff="output/real_data/mtb_5_10.gff3", 
+                  target_feature="putative_UTR", 
+                  output_file="output/real_data/mtb_5_10/putative_UTR_TPM.csv")
+# produce a single file of TPM values for all non-coding RNAs
+system("( cat output/real_data/mtb_5_10/putative_sRNA_TPM.csv ; tail -n +2 output/real_data/mtb_5_10/putative_UTR_TPM.csv ; ) | cat > output/real_data/mtb_5_10/putative_ncRNA_TPM.csv")
+# flag features according to their TPM values
+tpm_flagging( tpm_data="output/real_data/mtb_5_10/putative_ncRNA_TPM.csv", 
+              complete_annotation="output/real_data/mtb_5_10.gff3", 
+              output_file="output/real_data/flagged_mtb_5_10.gff3")
+# filter features according to their flags
+tpm_flag_filtering( complete_annotation_file="output/real_data/flagged_mtb_5_10.gff3", 
+                    target_flag="high_expression_hit", 
+                    target_features=c("putative_sRNA", "putative_UTR"), 
+                    output_file="output/real_data/filtered_high_expression_sRNA_mtb_5_10.gff3")
+# REPEAT for all cut-offs
+# Cut-off 5-20
+tpm <- tpm_normalisation(count_table="output/real_data/mtb_5_20/putative_sRNA_Counts.csv", 
+                  complete_gff="output/real_data/mtb_5_20.gff3", 
+                  target_feature="putative_sRNA", 
+                  output_file="output/real_data/mtb_5_20/putative_sRNA_TPM.csv")
+#repeat for putative UTRs
+tpm <- tpm_normalisation(count_table="output/real_data/mtb_5_20/putative_UTR_Counts.csv", 
+                  complete_gff="output/real_data/mtb_5_20.gff3", 
+                  target_feature="putative_UTR", 
+                  output_file="output/real_data/mtb_5_20/putative_UTR_TPM.csv")
+# produce a single file of TPM values for all non-coding RNAs
+system("( cat output/real_data/mtb_5_20/putative_sRNA_TPM.csv ; tail -n +2 output/real_data/mtb_5_20/putative_UTR_TPM.csv ; ) | cat > output/real_data/mtb_5_20/putative_ncRNA_TPM.csv")
+# flag features according to their TPM values
+tpm_flagging( tpm_data="output/real_data/mtb_5_20/putative_ncRNA_TPM.csv", 
+              complete_annotation="output/real_data/mtb_5_20.gff3", 
+              output_file="output/real_data/flagged_mtb_5_20.gff3")
+# filter features according to their flags
+tpm_flag_filtering( complete_annotation_file="output/real_data/flagged_mtb_5_20.gff3", 
+                    target_flag="high_expression_hit", 
+                    target_features=c("putative_sRNA", "putative_UTR"), 
+                    output_file="output/real_data/filtered_high_expression_sRNA_mtb_5_20.gff3")
+# Cut-off 2-20
+tpm <- tpm_normalisation(count_table="output/real_data/mtb_2_20/putative_sRNA_Counts.csv", 
+                  complete_gff="output/real_data/mtb_2_20.gff3", 
+                  target_feature="putative_sRNA", 
+                  output_file="output/real_data/mtb_2_20/putative_sRNA_TPM.csv")
+#repeat for putative UTRs
+tpm <- tpm_normalisation(count_table="output/real_data/mtb_2_20/putative_UTR_Counts.csv", 
+                  complete_gff="output/real_data/mtb_2_20.gff3", 
+                  target_feature="putative_UTR", 
+                  output_file="output/real_data/mtb_2_20/putative_UTR_TPM.csv")
+# produce a single file of TPM values for all non-coding RNAs
+system("( cat output/real_data/mtb_2_20/putative_sRNA_TPM.csv ; tail -n +2 output/real_data/mtb_2_20/putative_UTR_TPM.csv ; ) | cat > output/real_data/mtb_2_20/putative_ncRNA_TPM.csv")
+# flag features according to their TPM values
+tpm_flagging( tpm_data="output/real_data/mtb_2_20/putative_ncRNA_TPM.csv", 
+              complete_annotation="output/real_data/mtb_2_20.gff3", 
+              output_file="output/real_data/flagged_mtb_2_20.gff3")
+# filter features according to their flags
+tpm_flag_filtering( complete_annotation_file="output/real_data/flagged_mtb_2_20.gff3", 
+                    target_flag="high_expression_hit", 
+                    target_features=c("putative_sRNA", "putative_UTR"), 
+                    output_file="output/real_data/filtered_high_expression_sRNA_mtb_2_20.gff3")
+# Cut-off 2-10
+tpm <- tpm_normalisation(count_table="output/real_data/mtb_2_10/putative_sRNA_Counts.csv", 
+                  complete_gff="output/real_data/mtb_2_10.gff3", 
+                  target_feature="putative_sRNA", 
+                  output_file="output/real_data/mtb_2_10/putative_sRNA_TPM.csv")
+#repeat for putative UTRs
+tpm <- tpm_normalisation(count_table="output/real_data/mtb_2_10/putative_UTR_Counts.csv", 
+                  complete_gff="output/real_data/mtb_2_10.gff3", 
+                  target_feature="putative_UTR", 
+                  output_file="output/real_data/mtb_2_10/putative_UTR_TPM.csv")
+# produce a single file of TPM values for all non-coding RNAs
+system("( cat output/real_data/mtb_2_10/putative_sRNA_TPM.csv ; tail -n +2 output/real_data/mtb_2_10/putative_UTR_TPM.csv ; ) | cat > output/real_data/mtb_2_10/putative_ncRNA_TPM.csv")
+# flag features according to their TPM values
+tpm_flagging( tpm_data="output/real_data/mtb_2_10/putative_ncRNA_TPM.csv", 
+              complete_annotation="output/real_data/mtb_2_10.gff3", 
+              output_file="output/real_data/flagged_mtb_2_10.gff3")
+```
+
+## Overlap of predicted and known ncRNAs
+Here, we check whether the features predicted by baerhunter have any overlap with confirmed
+and unconfirmed small RNAs from the Haning et al. review (https://doi.org/10.3389/fcimb.2014.00096)
+
+```{r overlap_with_known_ncRNAs}
+# We will repeat this process several times so worth packaging in a function
+compare_known_with_predicted <- function(annotation_file, known_RNA_file, minoverlap=1L) {
+  # import the gff3 file using rtracklayer's import function
+  annot <- import.gff3(annotation_file)
+  
+  # create subsets of the putative sRNAs and UTRs first
+  pred.sRNA <- subset(annot, type == "putative_sRNA")
+  pred.UTR <- subset(annot, type == "putative_UTR")
+  num.pred.sRNA.plus <- length(ranges(subset(annot, (type == "putative_sRNA") & (strand == "+")) ) ) 
+  num.pred.sRNA.minus <- length(ranges(subset(annot, (type == "putative_sRNA") & (strand == "-")) ) ) 
+  num.pred.UTRs.plus <- length(ranges(subset(annot, (type == "putative_UTR") & (strand == "+")) ) ) 
+  num.pred.UTRs.minus <- length(ranges(subset(annot, (type == "putative_UTR") & (strand == "-")) ) ) 
+  
+  # read in the data from Haning et al's supplementary tables
+  known.ori <- read.delim(file=known_RNA_file, header=TRUE,   sep="\t",comment.char = "#") 
+  
+  # some of the entries in the original table have no start or end - remove!
+  dim(known.ori)
+  known <- subset(known.ori, (!is.na(known.ori$Start) & !is.na(known.ori$End)))
+  # check how many are left
+  dim(known)
+  known.all <- GRanges(seqnames="Chromosome",  
+                       ranges=IRanges(start=known[known[,"Start"] < known[,"End"],"Start"], 
+                                      end=known[known[,"Start"] < known[,"End"],"End"] ), 
+                       strand=rep("+", dim(known[known[,"Start"] < known[,"End"],])[1]))
+  
+  
+  # we ignore the strand and count features on both strands
+  sRNA.hits <- findOverlaps(known.all, pred.sRNA, type="any", minoverlap=minoverlap, ignore.strand=TRUE) 
+  UTR.hits <- findOverlaps(known.all, pred.UTR, type="any", minoverlap=minoverlap, ignore.strand=TRUE ) 
+  
+  #how many predicted hits  are confirmed?
+  num_UTR_confirmed <- length(unique(subjectHits(UTR.hits)))
+  num_sRNA_confirmed <- length(unique(subjectHits(sRNA.hits)))
+  num_all_confirmed <- length(unique(c(subjectHits(UTR.hits), subjectHits(sRNA.hits))))
+  
+  num_UTR_confirmed
+  num_sRNA_confirmed
+  num_all_confirmed
+  
+  num_pred_UTR <- length(ranges(pred.UTR))
+  num_pred_sRNA <- length(ranges(pred.sRNA))
+  num_pred_UTR
+  num_pred_sRNA 
+  res <- c(num_pred_UTR, num_pred_sRNA, num_UTR_confirmed, num_sRNA_confirmed)
+  names(res) <- c('num_pred_UTR', 'num_pred_sRNA', 'num_UTR_confirmed', 'num_sRNA_confirmed')
+  
+  return(res)
+}
+# ****** CHECK BAERHUNTER RESULTS******* #
+# Run the function to carry out the comparisons between confirmed RNAs and predicted ones and unconfirmed RNAs and predicted ones 
+res_5.10_1 <- compare_known_with_predicted(annotation_file="output/real_data/mtb_5_10.gff3", minoverlap=1L, known_RNA_file ="data/ALINA_Confirmed_sRNAs_MTB_Haning_2014_edited.csv")
+res_5.10_5 <- compare_known_with_predicted(annotation_file="output/real_data/mtb_5_10.gff3", minoverlap=5L, known_RNA_file ="data/ALINA_Confirmed_sRNAs_MTB_Haning_2014_edited.csv")
+res_5.10_10 <- compare_known_with_predicted(annotation_file="output/real_data/mtb_5_10.gff3", minoverlap=10L, known_RNA_file ="data/ALINA_Confirmed_sRNAs_MTB_Haning_2014_edited.csv")
+res_5.10_20 <- compare_known_with_predicted(annotation_file="output/real_data/mtb_5_10.gff3", minoverlap=20L, known_RNA_file ="data/ALINA_Confirmed_sRNAs_MTB_Haning_2014_edited.csv")
+res_5.10_50 <- compare_known_with_predicted(annotation_file="output/real_data/mtb_5_10.gff3", minoverlap=50L, known_RNA_file ="data/ALINA_Confirmed_sRNAs_MTB_Haning_2014_edited.csv")
+# Comparing results to list of unconfirmed ncRNAs from Haning's paper
+res_5.10_1_u <- compare_known_with_predicted(annotation_file="output/real_data/mtb_5_10.gff3", minoverlap=1L, known_RNA_file ="data/table_ncRNAs_Mtb_unconfirmed.txt")
+res_5.10_5_u <- compare_known_with_predicted(annotation_file="output/real_data/mtb_5_10.gff3", minoverlap=5L, known_RNA_file ="data/table_ncRNAs_Mtb_unconfirmed.txt")
+res_5.10_10_u <- compare_known_with_predicted(annotation_file="output/real_data/mtb_5_10.gff3", minoverlap=10L, known_RNA_file ="data/table_ncRNAs_Mtb_unconfirmed.txt")
+res_5.10_20_u <- compare_known_with_predicted(annotation_file="output/real_data/mtb_5_10.gff3", minoverlap=20L, known_RNA_file ="data/table_ncRNAs_Mtb_unconfirmed.txt")
+res_5.10_50_u <- compare_known_with_predicted(annotation_file="output/real_data/mtb_5_10.gff3", minoverlap=50L, known_RNA_file ="data/table_ncRNAs_Mtb_unconfirmed.txt")
+# Plot the results as barplots
+v.y  <- c(res_5.10_5[1], res_5.10_5[3]+res_5.10_5_u[3], res_5.10_10[3]+res_5.10_10_u[3], res_5.10_20[3]+res_5.10_20_u[3], res_5.10_5[2], res_5.10_5[4]+res_5.10_5_u[4], res_5.10_10[4]+res_5.10_10_u[4], res_5.10_20[4]+res_5.10_20_u[4])
+v.labels <- rep(c("predicted", "Haning.5", "Haning.10", "Haning.20"), 2)
+v.type <- c(rep("UTR", 4), rep("sRNA", 4))
+df <- data.frame(cbind(v.labels, v.type, v.y))
+colnames(df) <- c("labels", "type", "num_predictions")
+#put the v.types factor in the right order in the plot
+df$labels <- factor(df$labels, levels=c('predicted', 'Haning.5', 'Haning.10', 'Haning.20'))
+# df$v.y is factor and needs to be numeric
+p <- ggplot(data=df, aes(x=type, y=as.numeric(as.character(num_predictions)), fill=labels)) +
+    geom_bar(stat="identity", position=position_dodge()) +
+    scale_y_continuous(limits=c(0, 1500)) +
+    xlab("Type") +
+    ylab("Number of predictions") +
+    labs(fill='') +
+    scale_fill_grey() +
+    labs(title="Baerhunter (5-10) predictions", caption="Haning.x = predictions with min x nt overlap with ncRNAs from Haning list") +
+    theme(plot.caption = element_text(hjust=0.5))
+    
+p
+# REPEAT for other cut-offs
+# Cut-off 5-20
+res_5.20_1 <- compare_known_with_predicted(annotation_file="output/real_data/mtb_5_20.gff3", minoverlap=1L, known_RNA_file ="data/ALINA_Confirmed_sRNAs_MTB_Haning_2014_edited.csv")
+res_5.20_5 <- compare_known_with_predicted(annotation_file="output/real_data/mtb_5_20.gff3", minoverlap=5L, known_RNA_file ="data/ALINA_Confirmed_sRNAs_MTB_Haning_2014_edited.csv")
+res_5.20_10 <- compare_known_with_predicted(annotation_file="output/real_data/mtb_5_20.gff3", minoverlap=10L, known_RNA_file ="data/ALINA_Confirmed_sRNAs_MTB_Haning_2014_edited.csv")
+res_5.20_20 <- compare_known_with_predicted(annotation_file="output/real_data/mtb_5_20.gff3", minoverlap=20L, known_RNA_file ="data/ALINA_Confirmed_sRNAs_MTB_Haning_2014_edited.csv")
+res_5.20_50 <- compare_known_with_predicted(annotation_file="output/real_data/mtb_5_20.gff3", minoverlap=50L, known_RNA_file ="data/ALINA_Confirmed_sRNAs_MTB_Haning_2014_edited.csv")
+# Comparing results to list of unconfirmed ncRNAs from Haning's paper
+res_5.20_1_u <- compare_known_with_predicted(annotation_file="output/real_data/mtb_5_20.gff3", minoverlap=1L, known_RNA_file ="data/table_ncRNAs_Mtb_unconfirmed.txt")
+res_5.20_5_u <- compare_known_with_predicted(annotation_file="output/real_data/mtb_5_20.gff3", minoverlap=5L, known_RNA_file ="data/table_ncRNAs_Mtb_unconfirmed.txt")
+res_5.20_10_u <- compare_known_with_predicted(annotation_file="output/real_data/mtb_5_20.gff3", minoverlap=10L, known_RNA_file ="data/table_ncRNAs_Mtb_unconfirmed.txt")
+res_5.20_20_u <- compare_known_with_predicted(annotation_file="output/real_data/mtb_5_20.gff3", minoverlap=20L, known_RNA_file ="data/table_ncRNAs_Mtb_unconfirmed.txt")
+res_5.20_50_u <- compare_known_with_predicted(annotation_file="output/real_data/mtb_5_20.gff3", minoverlap=50L, known_RNA_file ="data/table_ncRNAs_Mtb_unconfirmed.txt")
+# Plot the results as barplots
+v.y  <- c(res_5.20_5[1], res_5.20_5[3]+res_5.20_5_u[3], res_5.20_10[3]+res_5.20_10_u[3], res_5.20_20[3]+res_5.20_20_u[3], res_5.20_5[2], res_5.20_5[4]+res_5.20_5_u[4], res_5.20_10[4]+res_5.20_10_u[4], res_5.20_20[4]+res_5.20_20_u[4])
+v.labels <- rep(c("predicted", "Haning.5", "Haning.10", "Haning.20"), 2)
+v.type <- c(rep("UTR", 4), rep("sRNA", 4))
+df <- data.frame(cbind(v.labels, v.type, v.y))
+colnames(df) <- c("labels", "type", "num_predictions")
+#put the v.types factor in the right order in the plot
+df$labels <- factor(df$labels, levels=c('predicted', 'Haning.5', 'Haning.10', 'Haning.20'))
+# df$v.y is factor and needs to be numeric
+p <- ggplot(data=df, aes(x=type, y=as.numeric(as.character(num_predictions)), fill=labels)) +
+    geom_bar(stat="identity", position=position_dodge()) +
+    scale_y_continuous(limits=c(0, 1000)) +
+    xlab("Type") +
+    ylab("Number of predictions") +
+    labs(fill='') +
+    scale_fill_grey() +
+    labs(title="Baerhunter (5-20) predictions", caption="Haning.x = predictions with min x nt overlap with ncRNAs from Haning list") +
+    theme(plot.caption = element_text(hjust=0.5))
+    
+p
+# Cut-off 2-20
+res_2.20_1 <- compare_known_with_predicted(annotation_file="output/real_data/mtb_2_20.gff3", minoverlap=1L, known_RNA_file ="data/ALINA_Confirmed_sRNAs_MTB_Haning_2014_edited.csv")
+res_2.20_5 <- compare_known_with_predicted(annotation_file="output/real_data/mtb_2_20.gff3", minoverlap=5L, known_RNA_file ="data/ALINA_Confirmed_sRNAs_MTB_Haning_2014_edited.csv")
+res_2.20_10 <- compare_known_with_predicted(annotation_file="output/real_data/mtb_2_20.gff3", minoverlap=10L, known_RNA_file ="data/ALINA_Confirmed_sRNAs_MTB_Haning_2014_edited.csv")
+res_2.20_20 <- compare_known_with_predicted(annotation_file="output/real_data/mtb_2_20.gff3", minoverlap=20L, known_RNA_file ="data/ALINA_Confirmed_sRNAs_MTB_Haning_2014_edited.csv")
+res_2.20_50 <- compare_known_with_predicted(annotation_file="output/real_data/mtb_2_20.gff3", minoverlap=50L, known_RNA_file ="data/ALINA_Confirmed_sRNAs_MTB_Haning_2014_edited.csv")
+# Comparing results to list of unconfirmed ncRNAs from Haning's paper
+res_2.20_1_u <- compare_known_with_predicted(annotation_file="output/real_data/mtb_2_20.gff3", minoverlap=1L, known_RNA_file ="data/table_ncRNAs_Mtb_unconfirmed.txt")
+res_2.20_5_u <- compare_known_with_predicted(annotation_file="output/real_data/mtb_2_20.gff3", minoverlap=5L, known_RNA_file ="data/table_ncRNAs_Mtb_unconfirmed.txt")
+res_2.20_10_u <- compare_known_with_predicted(annotation_file="output/real_data/mtb_2_20.gff3", minoverlap=10L, known_RNA_file ="data/table_ncRNAs_Mtb_unconfirmed.txt")
+res_2.20_20_u <- compare_known_with_predicted(annotation_file="output/real_data/mtb_2_20.gff3", minoverlap=20L, known_RNA_file ="data/table_ncRNAs_Mtb_unconfirmed.txt")
+res_2.20_50_u <- compare_known_with_predicted(annotation_file="output/real_data/mtb_2_20.gff3", minoverlap=50L, known_RNA_file ="data/table_ncRNAs_Mtb_unconfirmed.txt")
+# Plot the results as barplots
+v.y  <- c(res_2.20_5[1], res_2.20_5[3]+res_2.20_5_u[3], res_2.20_10[3]+res_2.20_10_u[3], res_2.20_20[3]+res_2.20_20_u[3], res_2.20_5[2], res_2.20_5[4]+res_2.20_5_u[4], res_2.20_10[4]+res_2.20_10_u[4], res_2.20_20[4]+res_2.20_20_u[4])
+v.labels <- rep(c("predicted", "Haning.5", "Haning.10", "Haning.20"), 2)
+v.type <- c(rep("UTR", 4), rep("sRNA", 4))
+df <- data.frame(cbind(v.labels, v.type, v.y))
+colnames(df) <- c("labels", "type", "num_predictions")
+#put the v.types factor in the right order in the plot
+df$labels <- factor(df$labels, levels=c('predicted', 'Haning.5', 'Haning.10', 'Haning.20'))
+# df$v.y is factor and needs to be numeric
+p <- ggplot(data=df, aes(x=type, y=as.numeric(as.character(num_predictions)), fill=labels)) +
+    geom_bar(stat="identity", position=position_dodge()) +
+    scale_y_continuous(limits=c(0, 1500)) +
+    xlab("Type") +
+    ylab("Number of predictions") +
+    labs(fill='') +
+    scale_fill_grey() +
+    labs(title="Baerhunter (2-20) predictions", caption="Haning.x = predictions with min x nt overlap with ncRNAs from Haning list") +
+    theme(plot.caption = element_text(hjust=0.5))
+p
+# Cut-off 2-10
+res_2.10_1 <- compare_known_with_predicted(annotation_file="output/real_data/mtb_2_10.gff3", minoverlap=1L, known_RNA_file ="data/ALINA_Confirmed_sRNAs_MTB_Haning_2014_edited.csv")
+res_2.10_5 <- compare_known_with_predicted(annotation_file="output/real_data/mtb_2_10.gff3", minoverlap=5L, known_RNA_file ="data/ALINA_Confirmed_sRNAs_MTB_Haning_2014_edited.csv")
+res_2.10_10 <- compare_known_with_predicted(annotation_file="output/real_data/mtb_2_10.gff3", minoverlap=10L, known_RNA_file ="data/ALINA_Confirmed_sRNAs_MTB_Haning_2014_edited.csv")
+res_2.10_20 <- compare_known_with_predicted(annotation_file="output/real_data/mtb_2_10.gff3", minoverlap=20L, known_RNA_file ="data/ALINA_Confirmed_sRNAs_MTB_Haning_2014_edited.csv")
+res_2.10_50 <- compare_known_with_predicted(annotation_file="output/real_data/mtb_2_10.gff3", minoverlap=50L, known_RNA_file ="data/ALINA_Confirmed_sRNAs_MTB_Haning_2014_edited.csv")
+# Comparing results to list of unconfirmed ncRNAs from Haning's paper
+res_2.10_1_u <- compare_known_with_predicted(annotation_file="output/real_data/mtb_2_10.gff3", minoverlap=1L, known_RNA_file ="data/table_ncRNAs_Mtb_unconfirmed.txt")
+res_2.10_5_u <- compare_known_with_predicted(annotation_file="output/real_data/mtb_2_10.gff3", minoverlap=5L, known_RNA_file ="data/table_ncRNAs_Mtb_unconfirmed.txt")
+res_2.10_10_u <- compare_known_with_predicted(annotation_file="output/real_data/mtb_2_10.gff3", minoverlap=10L, known_RNA_file ="data/table_ncRNAs_Mtb_unconfirmed.txt")
+res_2.10_20_u <- compare_known_with_predicted(annotation_file="output/real_data/mtb_2_10.gff3", minoverlap=20L, known_RNA_file ="data/table_ncRNAs_Mtb_unconfirmed.txt")
+res_2.10_50_u <- compare_known_with_predicted(annotation_file="output/real_data/mtb_2_10.gff3", minoverlap=50L, known_RNA_file ="data/table_ncRNAs_Mtb_unconfirmed.txt")
+# Plot the results as barplots
+v.y  <- c(res_2.10_5[1], res_2.10_5[3]+res_2.10_5_u[3], res_2.10_10[3]+res_2.10_10_u[3], res_2.10_20[3]+res_2.10_20_u[3], res_2.10_5[2], res_2.10_5[4]+res_2.10_5_u[4], res_2.10_10[4]+res_2.10_10_u[4], res_2.10_20[4]+res_2.10_20_u[4])
+v.labels <- rep(c("predicted", "Haning.5", "Haning.10", "Haning.20"), 2)
+v.type <- c(rep("UTR", 4), rep("sRNA", 4))
+df <- data.frame(cbind(v.labels, v.type, v.y))
+colnames(df) <- c("labels", "type", "num_predictions")
+#put the v.types factor in the right order in the plot
+df$labels <- factor(df$labels, levels=c('predicted', 'Haning.5', 'Haning.10', 'Haning.20'))
+# df$v.y is factor and needs to be numeric
+p <- ggplot(data=df, aes(x=type, y=as.numeric(as.character(num_predictions)), fill=labels)) +
+    geom_bar(stat="identity", position=position_dodge()) +
+    scale_y_continuous(limits=c(0, 1500)) +
+    xlab("Type") +
+    ylab("Number of predictions") +
+    labs(fill='') +
+    scale_fill_grey() +
+    labs(title="Baerhunter (2-10) predictions", caption="Haning.x = predictions with min x nt overlap with ncRNAs from Haning list") +
+    theme(plot.caption = element_text(hjust=0.5))
+    
+p
+# ***** CHECK ROCKHOPPER RESULTS ***** #
+#Run the functions to carry out the comparisons between confirmed RNAs and predicted ones and unconfirmed RNAs and predicted ones (by Rockhopper)
+res_0.2_40_1 <- compare_known_with_predicted(annotation_file="output/real_data/rockhopper_bam_0.2_40_output/NC_999999.gff3", minoverlap=1L, known_RNA_file ="data/ALINA_Confirmed_sRNAs_MTB_Haning_2014_edited.csv")
+res_0.2_40_5 <- compare_known_with_predicted(annotation_file="output/real_data/rockhopper_bam_0.2_40_output/NC_999999.gff3", minoverlap=5L, known_RNA_file ="data/ALINA_Confirmed_sRNAs_MTB_Haning_2014_edited.csv")
+res_0.2_40_10 <- compare_known_with_predicted(annotation_file="output/real_data/rockhopper_bam_0.2_40_output/NC_999999.gff3", minoverlap=10L, known_RNA_file ="data/ALINA_Confirmed_sRNAs_MTB_Haning_2014_edited.csv")
+res_0.2_40_20 <- compare_known_with_predicted(annotation_file="output/real_data/rockhopper_bam_0.2_40_output/NC_999999.gff3", minoverlap=20L, known_RNA_file ="data/ALINA_Confirmed_sRNAs_MTB_Haning_2014_edited.csv")
+res_0.2_40_50 <- compare_known_with_predicted(annotation_file="output/real_data/rockhopper_bam_0.2_40_output/NC_999999.gff3", minoverlap=50L, known_RNA_file ="data/ALINA_Confirmed_sRNAs_MTB_Haning_2014_edited.csv")
+#comparing to unconfirmed ones
+res_0.2_40_1_u <- compare_known_with_predicted(annotation_file="output/real_data/rockhopper_bam_0.2_40_output/NC_999999.gff3", minoverlap=1L, known_RNA_file ="data/table_ncRNAs_Mtb_unconfirmed.txt")
+res_0.2_40_5_u<- compare_known_with_predicted(annotation_file="output/real_data/rockhopper_bam_0.2_40_output/NC_999999.gff3", minoverlap=5L, known_RNA_file ="data/table_ncRNAs_Mtb_unconfirmed.txt")
+res_0.2_40_10_u <- compare_known_with_predicted(annotation_file="output/real_data/rockhopper_bam_0.2_40_output/NC_999999.gff3", minoverlap=10L, known_RNA_file ="data/table_ncRNAs_Mtb_unconfirmed.txt")
+res_0.2_40_20_u <- compare_known_with_predicted(annotation_file="output/real_data/rockhopper_bam_0.2_40_output/NC_999999.gff3", minoverlap=20L, known_RNA_file ="data/table_ncRNAs_Mtb_unconfirmed.txt")
+res_0.2_40_50_u <- compare_known_with_predicted(annotation_file="output/real_data/rockhopper_bam_0.2_40_output/NC_999999.gff3", minoverlap=50L, known_RNA_file ="data/table_ncRNAs_Mtb_unconfirmed.txt")
+#plot the results as barplots
+v.y  <- c(res_0.2_40_5[1], res_0.2_40_5[3]+res_0.2_40_5_u[3], res_0.2_40_10[3]+res_0.2_40_10_u[3], res_0.2_40_20[3]+res_0.2_40_20_u[3], res_0.2_40_5[2], res_0.2_40_5[4]+res_0.2_40_5_u[4], res_0.2_40_10[4]+res_0.2_40_10_u[4], res_0.2_40_20[4]+res_0.2_40_20_u[4])
+v.labels <- rep(c("predicted", "Haning.5", "Haning.10", "Haning.20"), 2)
+v.type <- c(rep("UTR", 4), rep("sRNA", 4))
+df.rh <- data.frame(cbind(v.labels, v.type, v.y))
+colnames(df.rh) <- c("labels", "type", "num_predictions")
+#put the v.types factor in the right order in the plot
+df.rh$labels <- factor(df.rh$labels, levels=c('predicted', 'Haning.5', 'Haning.10', 'Haning.20'))
+# df$v.y is factor and needs to be numeric
+p <- ggplot(data=df.rh, aes(x=type, y=as.numeric(as.character(num_predictions)), fill=labels)) +
+    geom_bar(stat="identity", position=position_dodge()) +
+    scale_y_continuous(limits=c(0, 1700)) +
+    xlab("Type") +
+    ylab("Number of predictions") +
+    labs(fill='') +
+    scale_fill_grey() +
+    labs(title="Rockhopper (0.2-40) predictions", caption="Haning.x = predictions with min x nt overlap with ncRNAs from Haning list") +
+    theme(plot.caption = element_text(hjust=0.5))
+p
+## REPEAT with Rockhopper 0.5-40
+# Rockhopper 0.5-40
+res_0.5_40_1 <- compare_known_with_predicted(annotation_file="output/real_data/rockhopper_bam_0.5_40_output/NC_999999.gff3", minoverlap=1L, known_RNA_file ="data/ALINA_Confirmed_sRNAs_MTB_Haning_2014_edited.csv")
+res_0.5_40_5 <- compare_known_with_predicted(annotation_file="output/real_data/rockhopper_bam_0.5_40_output/NC_999999.gff3", minoverlap=5L, known_RNA_file ="data/ALINA_Confirmed_sRNAs_MTB_Haning_2014_edited.csv")
+res_0.5_40_10 <- compare_known_with_predicted(annotation_file="output/real_data/rockhopper_bam_0.5_40_output/NC_999999.gff3", minoverlap=10L, known_RNA_file ="data/ALINA_Confirmed_sRNAs_MTB_Haning_2014_edited.csv")
+res_0.5_40_20 <- compare_known_with_predicted(annotation_file="output/real_data/rockhopper_bam_0.5_40_output/NC_999999.gff3", minoverlap=20L, known_RNA_file ="data/ALINA_Confirmed_sRNAs_MTB_Haning_2014_edited.csv")
+res_0.5_40_50 <- compare_known_with_predicted(annotation_file="output/real_data/rockhopper_bam_0.5_40_output/NC_999999.gff3", minoverlap=50L, known_RNA_file ="data/ALINA_Confirmed_sRNAs_MTB_Haning_2014_edited.csv")
+#comparing to unconfirmed ones
+res_0.5_40_1_u <- compare_known_with_predicted(annotation_file="output/real_data/rockhopper_bam_0.5_40_output/NC_999999.gff3", minoverlap=1L, known_RNA_file ="data/table_ncRNAs_Mtb_unconfirmed.txt")
+res_0.5_40_5_u<- compare_known_with_predicted(annotation_file="output/real_data/rockhopper_bam_0.5_40_output/NC_999999.gff3", minoverlap=5L, known_RNA_file ="data/table_ncRNAs_Mtb_unconfirmed.txt")
+res_0.5_40_10_u <- compare_known_with_predicted(annotation_file="output/real_data/rockhopper_bam_0.5_40_output/NC_999999.gff3", minoverlap=10L, known_RNA_file ="data/table_ncRNAs_Mtb_unconfirmed.txt")
+res_0.5_40_20_u <- compare_known_with_predicted(annotation_file="output/real_data/rockhopper_bam_0.5_40_output/NC_999999.gff3", minoverlap=20L, known_RNA_file ="data/table_ncRNAs_Mtb_unconfirmed.txt")
+res_0.5_40_50_u <- compare_known_with_predicted(annotation_file="output/real_data/rockhopper_bam_0.5_40_output/NC_999999.gff3", minoverlap=50L, known_RNA_file ="data/table_ncRNAs_Mtb_unconfirmed.txt")
+#plot the results as barplots
+v.y  <- c(res_0.5_40_5[1], res_0.5_40_5[3]+res_0.5_40_5_u[3], res_0.5_40_10[3]+res_0.5_40_10_u[3], res_0.5_40_20[3]+res_0.5_40_20_u[3], res_0.5_40_5[2], res_0.5_40_5[4]+res_0.5_40_5_u[4], res_0.5_40_10[4]+res_0.5_40_10_u[4], res_0.5_40_20[4]+res_0.5_40_20_u[4])
+v.labels <- rep(c("predicted", "Haning.5", "Haning.10", "Haning.20"), 2)
+v.type <- c(rep("UTR", 4), rep("sRNA", 4))
+df.rh <- data.frame(cbind(v.labels, v.type, v.y))
+colnames(df.rh) <- c("labels", "type", "num_predictions")
+#put the v.types factor in the right order in the plot
+df.rh$labels <- factor(df.rh$labels, levels=c('predicted', 'Haning.5', 'Haning.10', 'Haning.20'))
+# df$v.y is factor and needs to be numeric
+p <- ggplot(data=df.rh, aes(x=type, y=as.numeric(as.character(num_predictions)), fill=labels)) +
+    geom_bar(stat="identity", position=position_dodge()) +
+    scale_y_continuous(limits=c(0, 1000)) +
+    xlab("Type") +
+    ylab("Number of predictions") +
+    labs(fill='') +
+    scale_fill_grey() +
+    labs(title="Rockhopper (0.5-40) predictions", caption="Haning.x = predictions with min x nt overlap with ncRNAs from Haning list") +
+    theme(plot.caption = element_text(hjust=0.5))
+    
+p
+## END REPEAT
+# Check predictions using high-expression transcripts only
+hres_5.10_1 <- compare_known_with_predicted(annotation_file="output/real_data/filtered_high_expression_sRNA_mtb_5_10.gff3", minoverlap=1L, known_RNA_file ="data/ALINA_Confirmed_sRNAs_MTB_Haning_2014_edited.csv")
+hres_5.10_5 <- compare_known_with_predicted(annotation_file="output/real_data/filtered_high_expression_sRNA_mtb_5_10.gff3", minoverlap=5L, known_RNA_file ="data/ALINA_Confirmed_sRNAs_MTB_Haning_2014_edited.csv")
+hres_5.10_10 <- compare_known_with_predicted(annotation_file="output/real_data/filtered_high_expression_sRNA_mtb_5_10.gff3", minoverlap=10L, known_RNA_file ="data/ALINA_Confirmed_sRNAs_MTB_Haning_2014_edited.csv")
+hres_5.10_20 <- compare_known_with_predicted(annotation_file="output/real_data/filtered_high_expression_sRNA_mtb_5_10.gff3", minoverlap=20L, known_RNA_file ="data/ALINA_Confirmed_sRNAs_MTB_Haning_2014_edited.csv")
+#comparing to unconfirmed ones
+hres_5.10_1_u <- compare_known_with_predicted(annotation_file="output/real_data/filtered_high_expression_sRNA_mtb_5_10.gff3", minoverlap=1L, known_RNA_file ="data/table_ncRNAs_Mtb_unconfirmed.txt")
+hres_5.10_5_u <- compare_known_with_predicted(annotation_file="output/real_data/filtered_high_expression_sRNA_mtb_5_10.gff3", minoverlap=5L, known_RNA_file ="data/table_ncRNAs_Mtb_unconfirmed.txt")
+hres_5.10_10_u <- compare_known_with_predicted(annotation_file="output/real_data/filtered_high_expression_sRNA_mtb_5_10.gff3", minoverlap=10L, known_RNA_file ="data/table_ncRNAs_Mtb_unconfirmed.txt")
+hres_5.10_20_u <- compare_known_with_predicted(annotation_file="output/real_data/filtered_high_expression_sRNA_mtb_5_10.gff3", minoverlap=20L, known_RNA_file ="data/table_ncRNAs_Mtb_unconfirmed.txt")
+#plot the results as barplots
+v.y  <- c(hres_5.10_5[1], hres_5.10_5[3]+hres_5.10_5_u[3], hres_5.10_10[3]+hres_5.10_10_u[3], hres_5.10_20[3]+hres_5.10_20_u[3], hres_5.10_5[2], hres_5.10_5[4]+hres_5.10_5_u[4], hres_5.10_10[4]+hres_5.10_10_u[4], hres_5.10_20[4]+hres_5.10_20_u[4])
+v.labels <- rep(c("predicted", "Haning.5", "Haning.10", "Haning.20"), 2)
+v.type <- c(rep("UTR", 4), rep("sRNA", 4))
+df <- data.frame(cbind(v.labels, v.type, v.y))
+colnames(df) <- c("labels", "type", "num_predictions")
+#put the v.types factor in the right order in the plot
+df$labels <- factor(df$labels, levels=c('predicted', 'Haning.5', 'Haning.10', 'Haning.20'))
+# df$v.y is factor and needs to be numeric
+p <- ggplot(data=df, aes(x=type, y=as.numeric(as.character(num_predictions)), fill=labels)) +
+    geom_bar(stat="identity", position=position_dodge()) +
+    scale_y_continuous(limits=c(0, 400)) +
+    xlab("Type") +
+    ylab("Number of predictions") +
+    labs(fill='') +
+    scale_fill_grey() + 
+    labs(title="Baerhunter - high expression only (5-10) predictions", caption="Haning.x = predictions with min x nt overlap with ncRNAs from Haning list") +
+    theme(plot.caption = element_text(hjust=0.5))
+    
+p
+# print out a table with a summary of the results
+create_Haning_results_vector <- function(v1, v1.u, v5, v5.u, v10, v10.u, v20, v20.u)  {
+  res.v <- c(v1[1], v1[3]+v1.u[3], v5[3]+v5.u[3], v10[3]+v10.u[3], v20[3]+v20.u[3],  
+             v1[2], v1[4]+v1.u[4], v5[4]+v5.u[4], v10[4]+v10.u[4], v20[4]+v20.u[4])
+  names(res.v) <- c("num_pred_UTR", "UTR_Haning.1", "UTR_Haning.5", "UTR_Haning.10", "UTR_Haning.20", "num_pred_sRNA", "sRNA_Haning.1", "sRNA_Haning.5", "sRNA_Haning.10", "sRNA_Haning.20")
+  return(res.v) 
+}
+v.5_10 <- create_Haning_results_vector(res_5.10_1, res_5.10_1_u, res_5.10_5, res_5.10_5_u, res_5.10_10, res_5.10_10_u, res_5.10_20, res_5.10_20_u)
+v.h.5_10 <- create_Haning_results_vector(hres_5.10_1, hres_5.10_1_u, hres_5.10_5, hres_5.10_5_u, hres_5.10_10, hres_5.10_10_u, hres_5.10_20, hres_5.10_20_u)
+v.5_20 <- create_Haning_results_vector(res_5.20_1, res_5.20_1_u, res_5.20_5, res_5.20_5_u, res_5.20_10, res_5.20_10_u, res_5.20_20, res_5.20_20_u)
+v.2_10 <- create_Haning_results_vector(res_2.10_1, res_2.10_1_u, res_2.10_5, res_2.10_5_u, res_2.10_10, res_2.10_10_u, res_2.10_20, res_2.10_20_u)
+v.2_20 <- create_Haning_results_vector(res_2.20_1, res_2.20_1_u, res_2.20_5, res_2.20_5_u, res_2.20_10, res_2.20_10_u, res_2.20_20, res_2.20_20_u)
+v.rh.02.40 <- create_Haning_results_vector(res_0.2_40_1, res_0.2_40_1_u, res_0.2_40_5, res_0.2_40_5_u, res_0.2_40_10, res_0.2_40_10_u, res_0.2_40_20, res_0.2_40_20_u)
+v.rh.05.40 <- create_Haning_results_vector(res_0.5_40_1, res_0.5_40_1_u, res_0.5_40_5, res_0.5_40_5_u, res_0.5_40_10, res_0.5_40_10_u, res_0.5_40_20, res_0.5_40_20_u)
+m.Haning.res <- rbind(v.5_10, v.5_20, v.2_10, v.2_20, v.h.5_10, v.rh.02.40, v.rh.05.40)
+colnames(m.Haning.res) <- c("num_pred_UTR", "UTR_Haning.1", "UTR_Haning.5", "UTR_Haning.10", "UTR_Haning.20", "num_pred_sRNA", "sRNA_Haning.1", "sRNA_Haning.5", "sRNA_Haning.10", "sRNA_Haning.20")
+rownames(m.Haning.res) <- c("bh_5-10", "bh_5-20", "bh_2-10", "bh_2-20", "bh_he_5-10", "rh_0.2-40", "rh_0.5-40")
+# Print out in a table the results of predicting sRNAs and UTRs and how they match the Haning tables of ncRNAs
+m.Haning.res
+```
+
+## Overlap of predicted ncRNAs with TSS data
+Here, we check the likely accurary of our predictions against known TSS data. In this case, we have TSS data for the same dataset as the RNA-seq data used in this analysis (E-MTAB-1616). The TSS data come from the supplementary tables of the original paper by Cortes et al. (https://doi.org/10.1016/j.celrep.2013.10.031). 
+All TSS mapped during exponential growth are from the supplementary file mmc2.xlsx (sheet 1F).
+All TSS mapped during starvation are from the supplementary file mmc6.xlsx (sheet 1E).
+
+```{r overlap with TSS}
+tss.1 <- read.delim(file="data/Cortes_TSS_mmc2_1F.txt", header=TRUE,   sep="\t",comment.char = "#")
+tss.2 <- read.delim(file="data/Cortes_TSS_mmc6_6E_starved.txt",header=TRUE,   sep="\t",comment.char = "#" )
+tss.1f <- subset(tss.1, Strand == "F")
+length(tss.1f$Genome.position)
+tss.1r <- subset(tss.1, Strand == "R")
+length(tss.1r$Genome.position)
+tss.2f <- subset(tss.2, Strand == "F") 
+length(tss.2f$Genome.position)
+tss.2r <- subset(tss.2, Strand == "R")
+length(tss.2r$Genome.position)
+#first create a set from the union of the two forward sets and then a set from the union of the two reverse sets
+tss.f <- sort(union(tss.1f$Genome.position,tss.2f$Genome.position))
+length(tss.f)
+tss.r <- sort(union(tss.1r$Genome.position, tss.2r$Genome.position))
+length(tss.r)
+#then create a GRanges object with 1nt ranges from the TSS positions
+tss.f.gr <- GRanges(seqnames="Chromosome",  ranges=IRanges(start=tss.f, end = tss.f), strand=rep("+", length(tss.f)))
+tss.r.gr <- GRanges(seqnames="Chromosome",  ranges=IRanges(start=tss.r, end = tss.r), strand=rep("-", length(tss.r)))
+tss.gr <- c(tss.f.gr, tss.r.gr)
+#finally, find the overlap between our predicted sRNA and UTRs and the TSS positions
+#we will repeat this a few times so wrap it up in a function
+compare_TSS_with_predicted <- function(annotation_file, tss.gr, maxgap=-1L) {
+ 
+  #vector to hold the results
+  res <- c()
+   #import the gff3 file using rtracklayer's import function
+  annot <- import.gff3(annotation_file)
+  
+  #create subsets of the putative sRNAs and UTRs first
+  pred.sRNA.plus <- subset(annot, (type == "putative_sRNA") & (strand == "+"))
+  num.pred.sRNA.plus <- length(ranges(pred.sRNA.plus))
+  pred.sRNA.minus <- subset(annot, (type == "putative_sRNA") & (strand == "-"))
+  num.pred.sRNA.minus <- length(ranges(pred.sRNA.minus))
+  #NOTE: Only 5' UTRs would have experimental support!!
+  #Hence, we need to isolate 5' UTRs ONLY from the annotation file. We will demand
+  #that the end of the UTR is immediately followed by the start of a CDS on the same strand
+  CDS.plus <- subset(annot, (type == "CDS") & (strand == "+"))
+  pred.UTR.plus <- subset(annot, (type == "putative_UTR") & (strand == "+"))
+  adj.pairs <- findOverlapPairs(CDS.plus, pred.UTR.plus, maxgap=1L)
+  #the following extracts the pred.UTR.plus that satisfy the adjacency condition
+  tmp.pred.5pUTR.plus <- second(subset(adj.pairs, start(first) == end(second) + 1L))
+  #We also need to exclude 5' UTRs that are within operons as we often cannot tell whether they belong to the upstream or downstream gene and there is usually no TSS associated with them
+  #cross the 5p UTRs with the CDS again:
+  adj.pairs <- findOverlapPairs(CDS.plus, tmp.pred.5pUTR.plus, maxgap=1L)
+  #and select the ones that are not 3' to any CDS
+  rem.UTR <- second(subset(adj.pairs, start(second) == end(first) + 1L))
+  pred.5pUTR.plus <- second(adj.pairs)[!(second(adj.pairs) %in% rem.UTR),]
+  num.pred.UTR.plus <- length(ranges(pred.UTR.plus))
+  num.pred.5pUTR.plus <- length(ranges(pred.5pUTR.plus))
+  
+  CDS.minus <- subset(annot, (type == "CDS") & (strand == "-"))
+  pred.UTR.minus <- subset(annot, (type == "putative_UTR") & (strand == "-"))
+  adj.pairs <- findOverlapPairs(CDS.minus, pred.UTR.minus, maxgap=1L)
+  #the following extracts the pred.UTR.minus that satisfy the adjacency condition
+  tmp.pred.5pUTR.minus <- second(subset(adj.pairs, start(second) == end(first) + 1L))
+  #We also need to exclude 5' UTRs that are within operons as we cannot tell whether they belong to the upstream or downstream gene and there is usually no TSS associated with them
+  #cross the 5p UTRs with the CDS again:
+  adj.pairs <- findOverlapPairs(CDS.minus, tmp.pred.5pUTR.minus, maxgap=1L)
+  #and select the ones that are not 3' to any CDS
+  rem.UTR <- second(subset(adj.pairs, end(second) == start(first) - 1L))
+  pred.5pUTR.minus <- second(adj.pairs)[!(second(adj.pairs) %in% rem.UTR),]
+  num.pred.UTR.minus <- length(ranges(pred.UTR.minus))
+  num.pred.5pUTR.minus <- length(ranges(pred.5pUTR.minus))
+  
+  # If type is "start" the intervals are required to have matching starts
+  # - the maxgap parameter then means the maximum difference allowed in the starts
+  hits_tss_pred.sRNA.plus <- findOverlaps(tss.gr, pred.sRNA.plus, type="start", maxgap=maxgap)
+  hits_tss_pred.sRNA.minus <- findOverlaps(tss.gr, pred.sRNA.minus, type="end", maxgap=maxgap)
+  hits_tss_pred.UTR.plus <- findOverlaps(tss.gr, pred.5pUTR.plus, type="start", maxgap=maxgap)
+  hits_tss_pred.UTR.minus <- findOverlaps(tss.gr, pred.5pUTR.minus, type="end", maxgap=maxgap)
+  
+  #check which UTRs and sRNAs have no TSS 
+  pred.5pUTR.plus %outside% tss.gr
+  pred.sRNA.plus %outside% tss.gr
+  
+   settings <- paste0(annotation_file, ":", maxgap)
+  h <- c(
+         "predicted sRNAs(+)", 
+         "predicted sRNAs(-)", 
+         "predicted UTRs(+)", 
+         "predicted UTRs(-)",
+         "predicted 5p UTRs(+)", 
+         "predicted 5p UTRs(-)",
+         "predicted sRNA(+) overlapping TSS",
+         "predicted sRNA(-) overlapping TSS",
+         "predicted 5p UTRs(+) overlapping TSS",
+         "predicted 5p UTRs(-) overlapping TSS"
+  )
+  
+  
+   #add to vector so can plot later
+  res <- c(num.pred.sRNA.plus, num.pred.sRNA.minus, num.pred.UTR.plus, num.pred.UTR.minus, num.pred.5pUTR.plus, num.pred.5pUTR.minus, length(unique(subjectHits(hits_tss_pred.sRNA.plus))), length(unique(subjectHits(hits_tss_pred.sRNA.minus))), length(unique(subjectHits(hits_tss_pred.UTR.plus))), length(unique(subjectHits(hits_tss_pred.UTR.minus)))  
+  )
+  names(res) <- c(names(res), h)
+  
+  return(res)
+}
+# Check baerhunter results against known TSS #
+tss_5.10_1 <- compare_TSS_with_predicted("output/real_data/mtb_5_10.gff3", tss.gr, maxgap=1L)
+tss_5.10_5 <- compare_TSS_with_predicted("output/real_data/mtb_5_10.gff3", tss.gr, maxgap=5L)
+tss_5.10_10 <- compare_TSS_with_predicted("output/real_data/mtb_5_10.gff3", tss.gr, maxgap=10L)
+tss_5.10_20 <- compare_TSS_with_predicted("output/real_data/mtb_5_10.gff3", tss.gr, maxgap=20L)
+# check also predictions for highly expressed transcripts only
+tss_high5.10_1 <- compare_TSS_with_predicted("output/real_data/filtered_high_expression_sRNA_mtb_5_10.gff3", tss.gr, maxgap=1L)
+tss_high5.10_5 <- compare_TSS_with_predicted("output/real_data/filtered_high_expression_sRNA_mtb_5_10.gff3", tss.gr, maxgap=5L)
+tss_high5.10_10 <- compare_TSS_with_predicted("output/real_data/filtered_high_expression_sRNA_mtb_5_10.gff3", tss.gr, maxgap=10L)
+tss_high5.10_20 <- compare_TSS_with_predicted("output/real_data/filtered_high_expression_sRNA_mtb_5_10.gff3", tss.gr, maxgap=20L)
+# REPEAT WITH OTHER CUT-OFFS
+tss_5.20_1 <- compare_TSS_with_predicted("output/real_data/mtb_5_20.gff3", tss.gr, maxgap=1L)
+tss_5.20_5 <- compare_TSS_with_predicted("output/real_data/mtb_5_20.gff3", tss.gr, maxgap=5L)
+tss_5.20_10 <- compare_TSS_with_predicted("output/real_data/mtb_5_20.gff3", tss.gr, maxgap=10L)
+tss_5.20_20 <- compare_TSS_with_predicted("output/real_data/mtb_5_20.gff3", tss.gr, maxgap=20L)
+tss_2.10_1 <- compare_TSS_with_predicted("output/real_data/mtb_2_10.gff3", tss.gr, maxgap=1L)
+tss_2.10_5 <- compare_TSS_with_predicted("output/real_data/mtb_2_10.gff3", tss.gr, maxgap=5L)
+tss_2.10_10 <- compare_TSS_with_predicted("output/real_data/mtb_2_10.gff3", tss.gr, maxgap=10L)
+tss_2.10_20 <- compare_TSS_with_predicted("output/real_data/mtb_2_10.gff3", tss.gr, maxgap=20L)
+tss_2.20_1 <- compare_TSS_with_predicted("output/real_data/mtb_2_20.gff3", tss.gr, maxgap=1L)
+tss_2.20_5 <- compare_TSS_with_predicted("output/real_data/mtb_2_20.gff3", tss.gr, maxgap=5L)
+tss_2.20_10 <- compare_TSS_with_predicted("output/real_data/mtb_2_20.gff3", tss.gr, maxgap=10L)
+tss_2.20_20 <- compare_TSS_with_predicted("output/real_data/mtb_2_20.gff3", tss.gr, maxgap=20L)
+## END REPEAT
+# Make barplots of predictions for the 5' UTRs
+v.y  <- c(tss_5.10_5[5], tss_5.10_1[9], tss_5.10_5[9], tss_5.10_10[9], tss_5.10_20[9], tss_5.10_5[6], tss_5.10_1[10], tss_5.10_5[10], tss_5.10_10[10], tss_5.10_20[10])
+v.labels <- rep(c("all", "TSS(1)", "TSS(5)","TSS(10)", "TSS(20)"), 2)
+v.strand <- c(rep("+ strand", 5), rep("- strand",5))
+df <- data.frame(cbind(v.labels, v.strand, v.y))
+colnames(df) <- c("labels", "strand", "num_pred_5pUTRs")
+#put the v.types factor in the right order in the plot
+df$labels <- factor(df$labels, levels=c('all', 'TSS(1)', 'TSS(5)', 'TSS(10)', 'TSS(20)'))
+# df$v.y is factor and needs to be numeric
+p <- ggplot(data=df, aes(x=strand, y=as.numeric(as.character(num_pred_5pUTRs)), fill=labels)) +
+    geom_bar(stat="identity", position=position_dodge()) +
+    scale_y_continuous(limits=c(0, 300)) +
+    xlab("Strand") +
+    ylab("Number of predicted 5'UTRs") +
+    labs(fill='') +
+    scale_fill_grey() +
+    labs(title="Baerhunter (5-10) 5'UTR predictions" ) +
+    theme(plot.caption = element_text(hjust=0.5)) +
+    theme(plot.title = element_text(size=17)) +
+    theme(text = element_text(size = 17)) 
+p
+tiff(filename="output/real_data/SuppFig7B.tiff")
+p 
+dev.off()
+#high expression only 
+v.y  <- c(tss_high5.10_5[5], tss_high5.10_1[9], tss_high5.10_5[9], tss_high5.10_10[9], tss_high5.10_20[9], tss_high5.10_5[6], tss_high5.10_1[10], tss_high5.10_5[10], tss_high5.10_10[10], tss_high5.10_20[10])
+v.labels <- rep(c("all", "TSS(1)", "TSS(5)","TSS(10)", "TSS(20)"), 2)
+v.strand <- c(rep("+ strand", 5), rep("- strand",5))
+df <- data.frame(cbind(v.labels, v.strand, v.y))
+colnames(df) <- c("labels", "strand", "num_pred_5pUTRs")
+#put the v.types factor in the right order in the plot
+df$labels <- factor(df$labels, levels=c('all', 'TSS(1)', 'TSS(5)', 'TSS(10)', 'TSS(20)'))
+# df$v.y is factor and needs to be numeric
+p <- ggplot(data=df, aes(x=strand, y=as.numeric(as.character(num_pred_5pUTRs)), fill=labels)) +
+    geom_bar(stat="identity", position=position_dodge()) +
+    scale_y_continuous(limits=c(0, 150)) +
+    xlab("Strand") +
+    ylab("Number of predicted 5'UTRs") +
+    labs(fill='') +
+    scale_fill_grey() +
+    labs(title="Baerhunter-HE (5-10) 5'UTR predictions" ) +
+    theme(plot.caption = element_text(hjust=0.5)) +
+    theme(plot.title = element_text(size=17)) +
+    theme(text = element_text(size = 17)) 
+p
+# REPEAT FOR OTHER CUT-OFFS
+# Cut-off 5-20
+v.y  <- c(tss_5.20_5[5], tss_5.20_1[9], tss_5.20_5[9], tss_5.20_10[9], tss_5.20_20[9], tss_5.20_5[6], tss_5.20_1[10], tss_5.20_5[10], tss_5.20_10[10], tss_5.20_20[10])
+v.labels <- rep(c("all", "TSS(1)", "TSS(5)","TSS(10)", "TSS(20)"), 2)
+v.strand <- c(rep("+ strand", 5), rep("- strand",5))
+df <- data.frame(cbind(v.labels, v.strand, v.y))
+colnames(df) <- c("labels", "strand", "num_pred_5pUTRs")
+#put the v.types factor in the right order in the plot
+df$labels <- factor(df$labels, levels=c('all', 'TSS(1)', 'TSS(5)', 'TSS(10)', 'TSS(20)'))
+# df$v.y is factor and needs to be numeric
+p <- ggplot(data=df, aes(x=strand, y=as.numeric(as.character(num_pred_5pUTRs)), fill=labels)) +
+    geom_bar(stat="identity", position=position_dodge()) +
+    scale_y_continuous(limits=c(0, 300)) +
+    xlab("Strand") +
+    ylab("Number of predicted 5'UTRs") +
+    labs(fill='') +
+    scale_fill_grey() +
+    labs(title="Baerhunter (5-20) 5'UTR predictions" ) +
+    theme(plot.caption = element_text(hjust=0.5)) +
+    theme(plot.title = element_text(size=17)) +
+    theme(text = element_text(size = 17)) 
+p
+tiff(filename="output/real_data/SuppFig7A.tiff")
+p 
+dev.off()
+# Cut-off 2-20
+v.y  <- c(tss_2.20_5[5], tss_2.20_1[9], tss_2.20_5[9], tss_2.20_10[9], tss_2.20_20[9], tss_2.20_5[6], tss_2.20_1[10], tss_2.20_5[10], tss_2.20_10[10], tss_2.20_20[10])
+v.labels <- rep(c("all", "TSS(1)", "TSS(5)","TSS(10)", "TSS(20)"), 2)
+v.strand <- c(rep("+ strand", 5), rep("- strand",5))
+df <- data.frame(cbind(v.labels, v.strand, v.y))
+colnames(df) <- c("labels", "strand", "num_pred_5pUTRs")
+#put the v.types factor in the right order in the plot
+df$labels <- factor(df$labels, levels=c('all', 'TSS(1)', 'TSS(5)', 'TSS(10)', 'TSS(20)'))
+# df$v.y is factor and needs to be numeric
+p <- ggplot(data=df, aes(x=strand, y=as.numeric(as.character(num_pred_5pUTRs)), fill=labels)) +
+    geom_bar(stat="identity", position=position_dodge()) +
+    scale_y_continuous(limits=c(0, 700)) +
+    xlab("Strand") +
+    ylab("Number of predicted 5' UTRs") +
+    labs(fill='') +
+    scale_fill_grey() + 
+    labs(title="Baerhunter (2-20) 5' UTR predictions", caption="TSS(x) = Rockhopper predictions overlapped by known TSS within (x) nucleotides") +
+    theme(plot.caption = element_text(hjust=0.5))
+    
+p
+# Cut-off 2-10
+v.y  <- c(tss_2.10_5[5], tss_2.10_1[9], tss_2.10_5[9], tss_2.10_10[9], tss_2.10_20[9], tss_2.10_5[6], tss_2.10_1[10], tss_2.10_5[10], tss_2.10_10[10], tss_2.10_20[10])
+v.labels <- rep(c("all", "TSS(1)", "TSS(5)","TSS(10)", "TSS(20)"), 2)
+v.strand <- c(rep("+ strand", 5), rep("- strand",5))
+df <- data.frame(cbind(v.labels, v.strand, v.y))
+colnames(df) <- c("labels", "strand", "num_pred_5pUTRs")
+#put the v.types factor in the right order in the plot
+df$labels <- factor(df$labels, levels=c('all', 'TSS(1)', 'TSS(5)', 'TSS(10)', 'TSS(20)'))
+# df$v.y is factor and needs to be numeric
+p <- ggplot(data=df, aes(x=strand, y=as.numeric(as.character(num_pred_5pUTRs)), fill=labels)) +
+    geom_bar(stat="identity", position=position_dodge()) +
+    scale_y_continuous(limits=c(0, 700)) +
+    xlab("Strand") +
+    ylab("Number of predicted 5' UTRs") +
+    labs(fill='') +
+    scale_fill_grey() + 
+    labs(title="Baerhunter (2-10) 5' UTR predictions", caption="TSS(x) = Rockhopper predictions overlapped by known TSS within (x) nucleotides") +
+    theme(plot.caption = element_text(hjust=0.5))
+    
+p
+# END REPEAT
+# Make barplots of predictions for sRNA (backed up by TSS)
+v.y  <- c(tss_5.10_5[1], tss_5.10_1[7], tss_5.10_5[7], tss_5.10_10[7], tss_5.10_20[7], tss_5.10_5[2], tss_5.10_1[8], tss_5.10_5[8], tss_5.10_10[8], tss_5.10_20[8])
+v.types <- rep(c("all", "TSS(1)", "TSS(5)","TSS(10)", "TSS(20)"), 2)
+v.group <- c(rep("+ strand", 5), rep("- strand",5))
+df <- data.frame(cbind(v.types, v.group, v.y))
+colnames(df) <- c("labels", "strand", "num_pred_sRNAs")
+#put the v.types factor in the right order in the plot
+df$labels <- factor(df$labels, levels=c('all', 'TSS(1)', 'TSS(5)', 'TSS(10)', 'TSS(20)'))
+# df$v.y is factor and needs to be numeric
+p <- ggplot(data=df, aes(x=strand, y=as.numeric(as.character(num_pred_sRNAs)), fill=labels)) +
+    geom_bar(stat="identity", position=position_dodge()) +
+    scale_y_continuous(limits=c(0, 750)) +
+    xlab("Strand") +
+    ylab("Number of predicted sRNAs") +
+    labs(fill='') +
+    scale_fill_grey() +
+    labs(title="Baerhunter (5-10) sRNA predictions" ) +
+    theme(plot.caption = element_text(hjust=0.5)) +
+    theme(plot.title = element_text(size=17)) +
+    theme(text = element_text(size = 17)) 
+p
+# REPEAT FOR OTHER CUT-OFFS
+#Cut-off 5-20
+v.y  <- c(tss_5.20_5[1], tss_5.20_1[7], tss_5.20_5[7], tss_5.20_10[7], tss_5.20_20[7], tss_5.20_5[2], tss_5.20_1[8], tss_5.20_5[8], tss_5.20_10[8], tss_5.20_20[8])
+v.types <- rep(c("all", "TSS(1)", "TSS(5)","TSS(10)", "TSS(20)"), 2)
+v.group <- c(rep("+ strand", 5), rep("- strand",5))
+df <- data.frame(cbind(v.types, v.group, v.y))
+colnames(df) <- c("labels", "strand", "num_pred_sRNAs")
+#put the v.types factor in the right order in the plot
+df$labels <- factor(df$labels, levels=c('all', 'TSS(1)', 'TSS(5)', 'TSS(10)', 'TSS(20)'))
+# df$v.y is factor and needs to be numeric
+p <- ggplot(data=df, aes(x=strand, y=as.numeric(as.character(num_pred_sRNAs)), fill=labels)) +
+    geom_bar(stat="identity", position=position_dodge()) +
+    scale_y_continuous(limits=c(0, 400)) +
+    xlab("Strand") +
+    ylab("Number of predicted sRNAs") +
+    labs(fill='') +
+    scale_fill_grey() +
+    labs(title="Baerhunter (5-20) sRNA predictions" ) +
+    theme(plot.caption = element_text(hjust=0.5)) +
+    theme(plot.title = element_text(size=17)) +
+    theme(text = element_text(size = 17)) 
+p
+# Cut-off 2-20
+v.y  <- c(tss_2.20_5[1], tss_2.20_1[7], tss_2.20_5[7], tss_2.20_10[7], tss_2.20_20[7], tss_2.20_5[2], tss_2.20_1[8], tss_2.20_5[8], tss_2.20_10[8], tss_2.20_20[8])
+v.types <- rep(c("all", "TSS(1)", "TSS(5)","TSS(10)", "TSS(20)"), 2)
+v.group <- c(rep("+ strand", 5), rep("- strand",5))
+df <- data.frame(cbind(v.types, v.group, v.y))
+colnames(df) <- c("labels", "strand", "num_pred_sRNAs")
+#put the v.types factor in the right order in the plot
+df$labels <- factor(df$labels, levels=c('all', 'TSS(1)', 'TSS(5)', 'TSS(10)', 'TSS(20)'))
+# df$v.y is factor and needs to be numeric
+p <- ggplot(data=df, aes(x=strand, y=as.numeric(as.character(num_pred_sRNAs)), fill=labels)) +
+    geom_bar(stat="identity", position=position_dodge()) +
+    scale_y_continuous(limits=c(0, 750)) +
+    xlab("Strand") +
+    ylab("Number of predicted sRNAs") +
+    labs(fill='') +
+    scale_fill_grey() +
+    labs(title="Baerhunter (2-20) sRNA predictions" ) +
+    theme(plot.caption = element_text(hjust=0.5)) +
+    theme(plot.title = element_text(size=17)) +
+    theme(text = element_text(size = 17)) 
+p
+# Cut-off 2-10
+v.y  <- c(tss_2.10_5[1], tss_2.10_1[7], tss_2.10_5[7], tss_2.10_10[7], tss_2.10_20[7], tss_2.10_5[2], tss_2.10_1[8], tss_2.10_5[8], tss_2.10_10[8], tss_2.10_20[8])
+v.types <- rep(c("all", "TSS(1)", "TSS(5)","TSS(10)", "TSS(20)"), 2)
+v.group <- c(rep("+ strand", 5), rep("- strand",5))
+df <- data.frame(cbind(v.types, v.group, v.y))
+colnames(df) <- c("labels", "strand", "num_pred_sRNAs")
+#put the v.types factor in the right order in the plot
+df$labels <- factor(df$labels, levels=c('all', 'TSS(1)', 'TSS(5)', 'TSS(10)', 'TSS(20)'))
+# df$v.y is factor and needs to be numeric
+p <- ggplot(data=df, aes(x=strand, y=as.numeric(as.character(num_pred_sRNAs)), fill=labels)) +
+    geom_bar(stat="identity", position=position_dodge()) +
+    scale_y_continuous(limits=c(0, 750)) +
+    xlab("Strand") +
+    ylab("Number of predicted sRNAs") +
+    labs(fill='') +
+    scale_fill_grey() +
+    labs(title="Baerhunter (2-10) sRNA predictions" ) +
+    theme(plot.caption = element_text(hjust=0.5)) +
+    theme(plot.title = element_text(size=17)) +
+    theme(text = element_text(size = 17)) 
+p
+# END REPEAT
+# Checking results from Rockhopper against known TSS #
+# 5' UTR predictions
+# Using parameters 0.5/40
+tss_05.40_1 <- compare_TSS_with_predicted("output/real_data/rockhopper_bam_0.5_40_output/NC_999999.gff3", tss.gr, maxgap=1L)
+tss_05.40_5 <- compare_TSS_with_predicted("output/real_data/rockhopper_bam_0.5_40_output/NC_999999.gff3", tss.gr, maxgap=5L)
+tss_05.40_10 <- compare_TSS_with_predicted("output/real_data/rockhopper_bam_0.5_40_output/NC_999999.gff3", tss.gr, maxgap=10L)
+tss_05.40_20 <- compare_TSS_with_predicted("output/real_data/rockhopper_bam_0.5_40_output/NC_999999.gff3", tss.gr, maxgap=20L)
+v.y  <- c(tss_05.40_5[5], tss_05.40_1[9], tss_05.40_5[9], tss_05.40_10[9], tss_05.40_20[9], tss_05.40_5[6], tss_05.40_1[10], tss_05.40_5[10], tss_05.40_10[10], tss_05.40_20[10])
+v.labels <- rep(c("all", "TSS(1)", "TSS(5)","TSS(10)", "TSS(20)"), 2)
+v.strand <- c(rep("+ strand", 5), rep("- strand",5))
+df.rh <- data.frame(cbind(v.labels, v.strand, v.y))
+colnames(df.rh) <- c("labels", "strand", "num_pred_5pUTRs")
+#put the v.types factor in the right order in the plot
+df.rh$labels <- factor(df.rh$labels, levels=c('all', 'TSS(1)', 'TSS(5)', 'TSS(10)', 'TSS(20)'))
+# df$v.y is factor and needs to be numeric
+p <- ggplot(data=df.rh, aes(x=strand, y=as.numeric(as.character(num_pred_5pUTRs)), fill=labels)) +
+    geom_bar(stat="identity", position=position_dodge()) +
+    scale_y_continuous(limits=c(0, 300)) +
+    xlab("Strand") +
+    ylab("Number of predicted 5'UTRs") +
+    labs(fill='') +
+    scale_fill_grey() +
+    labs(title="Rockhopper (0.5-40) 5'UTR predictions" ) +
+    theme(plot.caption = element_text(hjust=0.5)) +
+    theme(plot.title = element_text(size=17)) +
+    theme(text = element_text(size = 17)) 
+p
+tiff(filename="output/real_data/SuppFig7C.tiff")
+p 
+dev.off()
+# Using parameters 0.2/40
+tss_02.40_1 <- compare_TSS_with_predicted("output/real_data/rockhopper_bam_0.2_40_output/NC_999999.gff3", tss.gr, maxgap=1L)
+tss_02.40_5 <- compare_TSS_with_predicted("output/real_data/rockhopper_bam_0.2_40_output/NC_999999.gff3", tss.gr, maxgap=5L)
+tss_02.40_10 <- compare_TSS_with_predicted("output/real_data/rockhopper_bam_0.2_40_output/NC_999999.gff3", tss.gr, maxgap=10L)
+tss_02.40_20 <- compare_TSS_with_predicted("output/real_data/rockhopper_bam_0.2_40_output/NC_999999.gff3", tss.gr, maxgap=20L)
+v.y  <- c(tss_02.40_5[5], tss_02.40_1[9], tss_02.40_5[9], tss_02.40_10[9], tss_02.40_20[9], tss_02.40_5[6], tss_02.40_1[10], tss_02.40_5[10], tss_02.40_10[10], tss_02.40_20[10])
+v.labels <- rep(c("all", "TSS(1)", "TSS(5)","TSS(10)", "TSS(20)"), 2)
+v.strand <- c(rep("+ strand", 5), rep("- strand",5))
+df.rh <- data.frame(cbind(v.labels, v.strand, v.y))
+colnames(df.rh) <- c("labels", "strand", "num_pred_5pUTRs")
+#put the v.types factor in the right order in the plot
+df.rh$labels <- factor(df.rh$labels, levels=c('all', 'TSS(1)', 'TSS(5)', 'TSS(10)', 'TSS(20)'))
+# df$v.y is factor and needs to be numeric
+p <- ggplot(data=df.rh, aes(x=strand, y=as.numeric(as.character(num_pred_5pUTRs)), fill=labels)) +
+    geom_bar(stat="identity", position=position_dodge()) +
+    scale_y_continuous(limits=c(0, 500)) +
+    xlab("Strand") +
+    ylab("Number of predicted 5'UTRs") +
+    labs(fill='') +
+    scale_fill_grey() +
+    labs(title="Rockhopper (0.2-40) 5'UTR predictions" ) +
+    theme(plot.caption = element_text(hjust=0.5)) +
+    theme(plot.title = element_text(size=17)) +
+    theme(text = element_text(size = 17)) 
+p
+tiff(filename="output/real_data/SuppFig7D.tiff")
+p 
+dev.off()
+# Rockhopper sRNA predictions #
+# Cut-off 0.5/40
+v.y  <- c(tss_05.40_5[1], tss_05.40_1[7], tss_05.40_5[7], tss_05.40_10[7], tss_05.40_20[7], tss_05.40_5[2], tss_05.40_1[8], tss_05.40_5[8], tss_05.40_10[8], tss_05.40_20[8])
+v.types <- rep(c("all", "TSS(1)", "TSS(5)","TSS(10)", "TSS(20)"), 2)
+v.group <- c(rep("+ strand", 5), rep("- strand",5))
+df.rh <- data.frame(cbind(v.types, v.group, v.y))
+colnames(df.rh) <- c("labels", "strand", "num_pred_sRNAs")
+#put the v.types factor in the right order in the plot
+df.rh$labels <- factor(df.rh$labels, levels=c('all', 'TSS(1)', 'TSS(5)', 'TSS(10)', 'TSS(20)'))
+# df$v.y is factor and needs to be numeric
+p <- ggplot(data=df.rh, aes(x=strand, y=as.numeric(as.character(num_pred_sRNAs)), fill=labels)) +
+    geom_bar(stat="identity", position=position_dodge()) +
+    scale_y_continuous(limits=c(0, 200)) +
+    xlab("Strand") +
+    ylab("Number of predicted sRNAs") +
+    labs(fill='') +
+    scale_fill_grey() +
+    labs(title="Rockhopper (0.5-40) sRNA predictions" ) +
+    theme(plot.caption = element_text(hjust=0.5)) +
+    theme(plot.title = element_text(size=17)) +
+    theme(text = element_text(size = 17)) 
+p
+# Cut-off 0.2/40
+v.y  <- c(tss_02.40_5[1], tss_02.40_1[7], tss_02.40_5[7], tss_02.40_10[7], tss_02.40_20[7], tss_02.40_5[2], tss_02.40_1[8], tss_02.40_5[8], tss_02.40_10[8], tss_02.40_20[8])
+v.types <- rep(c("all", "TSS(1)", "TSS(5)","TSS(10)", "TSS(20)"), 2)
+v.group <- c(rep("+ strand", 5), rep("- strand",5))
+df.rh <- data.frame(cbind(v.types, v.group, v.y))
+colnames(df.rh) <- c("labels", "strand", "num_pred_sRNAs")
+#put the v.types factor in the right order in the plot
+df.rh$labels <- factor(df.rh$labels, levels=c('all', 'TSS(1)', 'TSS(5)', 'TSS(10)', 'TSS(20)'))
+# df$v.y is factor and needs to be numeric
+p <- ggplot(data=df.rh, aes(x=strand, y=as.numeric(as.character(num_pred_sRNAs)), fill=labels)) +
+    geom_bar(stat="identity", position=position_dodge()) +
+    scale_y_continuous(limits=c(0, 350)) +
+    xlab("Strand") +
+    ylab("Number of predicted sRNAs") +
+    labs(fill='') +
+    scale_fill_grey() +
+    labs(title="Rockhopper (0.2-40) sRNA predictions" ) +
+    theme(plot.caption = element_text(hjust=0.5)) +
+    theme(plot.title = element_text(size=17)) +
+    theme(text = element_text(size = 17)) 
+p
+# Create a table holding all the results for predictions as matched by TSS data
+create_TSS_results_vector <- function(v1, v5, v10, v20)  {
+  res.v <- c(v1[1]+v1[2], v1[7]+v1[8], v5[7]+v5[8], v10[7]+v10[8], v20[7]+v20[8],  
+             v1[5]+v1[6], v1[9]+v1[10], v5[9]+v5[10], v10[9]+v10[10], v20[9]+v20[10])
+  names(res.v) <- c("num_pred_sRNA", "sRNA_TSS.1", "sRNA_TSS.5", "sRNA_TSS.10", "sRNA_TSS.20", "num_pred_5pUTR", "UTR_TSS.1", "UTR_TSS.5", "UTR_TSS.10", "UTR_TSS.20" )
+  return(res.v) 
+}
+v.5_10 <- create_TSS_results_vector(tss_5.10_1, tss_5.10_5, tss_5.10_10, tss_5.10_20)
+v.5_20 <- create_TSS_results_vector(tss_5.20_1, tss_5.20_5, tss_5.20_10, tss_5.20_20)
+v.2_10 <- create_TSS_results_vector(tss_2.10_1, tss_2.10_5, tss_2.10_10, tss_2.10_20)
+v.2_20 <- create_TSS_results_vector(tss_2.20_1, tss_2.20_5, tss_2.20_10, tss_2.20_20)
+v.h.5_10 <- create_TSS_results_vector(tss_high5.10_1, tss_high5.10_5, tss_high5.10_10, tss_high5.10_20)
+v.rh.02.40 <- create_TSS_results_vector(tss_02.40_1, tss_02.40_5, tss_02.40_10, tss_02.40_20)
+v.rh.05.40 <- create_TSS_results_vector(tss_05.40_1, tss_05.40_5, tss_05.40_10, tss_05.40_20)
+m.TSS.res <- rbind(v.5_10, v.5_20, v.2_10, v.2_20, v.h.5_10, v.rh.02.40, v.rh.05.40)
+colnames(m.TSS.res) <- c("num_pred_sRNA", "sRNA_TSS.1", "sRNA_TSS.5", "sRNA_TSS.10", "sRNA_TSS.20", "num_pred_UTR", "UTR_TSS.1", "UTR_TSS.5", "UTR_TSS.10", "UTR_TSS.20")
+rownames(m.TSS.res) <- c("bh_5-10", "bh_5-20", "bh_2-10", "bh_2-20", "bh_he_5-10", "rh_0.2-40", "rh_0.5-40")
+# Print out in a table the results of predicting sRNAs and UTRs and how they match the TSS values from the Cortes et al. supplementary tables.
+m.TSS.res
+```
+
+
+
+## Example of downstream analysis - differential gene expression with DESeq2
+In this example, we create a counts file that contains counts for both coding genes and ncRNA elements and use DESeq2 to identify differentially expressed features. We separate the UTRs from the CDS regions, as it is not uncommon to see differential expression in the UTR without much signal covering the CDS region.
+In the dataset used here, we have 3 samples from exponentially growing Mtb and 3 samples grown in starved condition. We do not consider any other covariates.
+Following differential expression analysis with DESeq2, we print out the 10 top "gene" features (ordered by adjusted p-value), followed by the top 10 ncRNA features.
+
+```{r differential_expression}
+# Create a counts file with counts from genes and ncRNA
+system("( cat output/real_data/mtb_5_10/gene_Counts.csv ; tail -n +2 output/real_data/mtb_5_10/putative_UTR_Counts.csv; tail -n +2 output/real_data/mtb_5_10/putative_sRNA_Counts.csv; ) | cat > output/real_data/mtb_5_10/allCounts.csv")
+#Call differential_expression() function
+de.res <- differential_expression(feature_count_file="output/real_data/mtb_5_10/allCounts.csv", metadata_file="output/real_data/conditions.txt", cutoff_value=10, multiple_variables=FALSE, main_condition="condition", output_file_name="output/real_data/mtb_5_10/allCounts_diff_expression.csv")
+summary(de.res)
+resOrdered <- de.res[order(de.res$padj),]
+resOrdered[grep('gene', rownames(resOrdered))[1:10],]
+resOrdered[grep('putative', rownames(resOrdered))[1:10],]
+```
+
+```{r session information}
+sessionInfo()
+```
+
+© 2020 GitHub, Inc.
+Terms
+Privacy
+Cookie Preferences
+Security
+Status
+Help
+Contact GitHub
+Pricing
+API
+Training
+Blog
+About
