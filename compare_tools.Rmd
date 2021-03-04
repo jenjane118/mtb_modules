@@ -1,0 +1,489 @@
+---
+title: "srna tool comparison"
+output: html_notebook
+---
+
+## ANNOGESIC TESTING
+
+![annogesic docs](https://annogesic.readthedocs.io/en/latest/tutorial.html#prediction-of-srna-and-sorf)
+
+
+created new conda env 'rna' for work with annogesic and apero
+
+16 Feb 2021
+
+Making RNA conda env for running apero/annogesic
+installed all dependencies individually, have to install annogesic through git clone
+
+```{bash}
+conda install git
+#pip install git+git:github.com/Sung-Huan/ANNOgesic.git
+# didn't work, so tried using python package instead. 
+pip3 install ANNOgesic
+pip3 install ANNOgesic --upgrade
+```
+
+'for running srna, we can apply several filters to improve the detection. These filters are tss, sec_str, blast_nr, blast_srna, promoter, term, sorf. Normally, tss, sec_str, blast_nr, blast_srna are recommended to be used.'
+
+I don't think we need to use filtering other than tss.
+
+need to convert bam files to wig files:
+```{bash}
+conda install -c bioconda jvarkit-bam2wig 
+```
+
+This tool isn't going to work--not sure how to use java in conda.
+
+install bedtools, two step process:
+1)bam to bed (or bedgraph)
+
+```{bash}
+bedtools bamtobed -i SRR3725585_sorted.bam > SRR3725585.bed
+```
+
+This doesn't look anything like a bed file.
+
+Try this step next?
+
+```{bash}
+#genomeCoverageBed –i SRR3725585.bed -bg –g ~/git/mtb_modules/ref_seqs/Mtb_h37rv.ASM19595v2_AL123456.3 > SRR3725585.cov
+
+# or straight from sorted bam
+bedtools genomecov -ibam SRR3725585_sorted.bam -bg > SRR3725585.bg        
+
+```
+
+this looks good.
+
+2)bed to wig
+
+doesn't look like bedtools does bam to wig anymore?
+
+```{bash}
+samtools depth -aa your.bam | awk '{if (prev!=$1) print "fixedStep chrom="$1" start="$2" step=1 span=1\n"$3; else print $3; prev=$1}' > your.wig
+
+samtools depth -aa SRR3725585_sorted.bam | awk '{if (prev!=$1) print "fixedStep chrom="$1" start="$2" step=1 span=1\n"$3; else print $3; prev=$1}' > SRR3725585_sorted.wig
+
+```
+
+this uses fixed step of 1. I notice example wig in annogesic docs has a variable step? Also, I need files to be divided into strand.
+
+Maybe do it in R instead?
+
+
+```{R}
+library(rtracklayer) #bioconductor
+
+#bed_loaded <- import(con="~/Downloads/my_bed.bed.gz", format="bed") #no need to unzip .gz
+#bed_loaded <- import(con="~/Data/PRJNA327080_15/SRR3725585.bed", format="BED") #if you unzip 
+#head(bed_loaded)
+#export.wig(object=bed_loaded, con="~/Data/PRJNA327080_15/SRR3725585.wig")
+
+
+#Looks like some kind of format problem. Maybe rtracklayer can use bedgraph file instead
+#(see above for using bedtools to convert sorted bam to bedgraph)
+
+bed_loaded <- import(con="~/Data/PRJNA327080_15/SRR3725585.bg", format="bedGraph")
+export.bw(object=bed_loaded, con="~/Data/PRJNA327080_15/SRR3725585.bw")
+
+
+```
+
+Though, I'm probably going to need to run this stuff on the server, rather than my computer? I can test on computer, then reinstall in new conda env on thoth.
+
+
+Trying to use python file 'bam2wig'. can't find in python, create copy of script from https://github.com/dnanexus/rseqc/blob/master/rseqc/scripts/bam2wig.py . Looks like it needs python v2.7
+
+Run python script in python v2 
+
+[package docs](http://rseqc.sourceforge.net)
+
+```{bash}
+module load /s/software/anaconda/python2
+bam2wig.py -i /d/in19/u/zchayyt/sample_accessions/PRJNA327080_15/BWA_mem/SRR3725585_sorted.bam -o SRR3725585 -d 1+-,1-+,2++,2-- -s chrom_size.txt
+```
+
+hope I've got the stranding correct! I am using second, since we are using reversely-stranded data.
+
+For pair-end RNA-seq, there are two different ways to strand reads (such as Illumina ScriptSeq protocol):
+
+1++,1–,2+-,2-+
+read1 mapped to ‘+’ strand indicates parental gene on ‘+’ strand
+read1 mapped to ‘-‘ strand indicates parental gene on ‘-‘ strand
+read2 mapped to ‘+’ strand indicates parental gene on ‘-‘ strand
+read2 mapped to ‘-‘ strand indicates parental gene on ‘+’ strand
+1+-,1-+,2++,2–
+read1 mapped to ‘+’ strand indicates parental gene on ‘-‘ strand
+read1 mapped to ‘-‘ strand indicates parental gene on ‘+’ strand
+read2 mapped to ‘+’ strand indicates parental gene on ‘+’ strand
+read2 mapped to ‘-‘ strand indicates parental gene on ‘-‘ strand
+
+This worked but created two .wig files (forward and reverse)? Is that right?
+
+for input files (fragmented?, RNAseq): 
+```
+$LIBRARY_FILENAME:$LIBRARY_TYPE:$CONDITION:$REPLICATE:$STRAND
+fragmented_forward.wig:frag:1:a:+ fragmented_reverse.wig:frag:1:a:-
+```
+
+Step 1: 'transcript' transcript detection with gff files
+Step 2: 'srna' use transcript files for srna detection?
+
+```{bash}
+usage: annogesic transcript --project_path PROJECT_PATH
+                        [--annotation_files ANNOTATION_FILES [ANNOTATION_FILES ...]]
+                        [--modify_transcript {merge_overlap,extend_3end,extend_5end,within_extend_ends,none} [{merge_overlap,extend_3end,extend_5end,within_extend_ends,none} ...]]
+                        [--frag_libs FRAG_LIBS [FRAG_LIBS ...]]
+                        
+basic arguments:
+  --project_path PROJECT_PATH, -pj PROJECT_PATH
+                        Path of the project folder.
+  --annotation_files ANNOTATION_FILES [ANNOTATION_FILES ...], -g ANNOTATION_FILES [ANNOTATION_FILES ...]
+                        Paths of the genome annotation gff files containing
+                        CDSs, tRNAs, rRNAs, etc. TSS gff files and terminator
+                        gff files need to be separately assigned to
+                        --tss_files and --terminator_files, respectively.
+  --modify_transcript {merge_overlap,extend_3end,extend_5end,within_extend_ends,none} [{merge_overlap,extend_3end,extend_5end,within_extend_ends,none} ...], -mt {merge_overlap,extend_3end,extend_5end,within_extend_ends,none} [{merge_overlap,extend_3end,extend_5end,within_extend_ends,none} ...]
+                        If --annotation_files is provided, the post-
+                        modification of transcript based on genome annotations
+                        can be assigned. There are five opetions. 1.
+                        "merge_overlap": if multiple transcripts overlap with
+                        the same gene, they will be merged as one complete
+                        transcript. 2. "extend_3end": if a transcript starts
+                        at the upstream of a gene and ends within the gene,
+                        the end point of the transcript will be extended to
+                        the end point of the gene. 3. "extend_5end": if a
+                        transcript starts within a gene and ends at the
+                        downstream of gene, the starting point of the
+                        transcript will be extended to the starting point of
+                        the gene. 4. "within_extend_ends": if a transcript is
+                        within a gene, the two ends of the transcript will be
+                        extended to the two ends of gene. 5. "none": the
+                        transcript will not be modified by the genome
+                        annotations. For using mutliple modifications, please
+                        separated them by spaces. Default is merge_overlapped.
+  
+  --frag_libs FRAG_LIBS [FRAG_LIBS ...], -fl FRAG_LIBS [FRAG_LIBS ...]
+                        Wig files of RNA-Seq with transcript fragmented. The
+                        format is: wig_file_path:frag:condition_id(integer):re
+                        plicate_id(alphabet):strand(+ or -). If multiple wig
+                        files need to be assigned, please use spaces to
+                        separate the wig files. For example,
+                        my_lib_frag_forward.wig:frag:1:a:+
+                        my_lib_frag_reverse.wig:frag:1:a:-.
+  
+  --replicate_frag REPLICATE_FRAG [REPLICATE_FRAG ...], -rf REPLICATE_FRAG [REPLICATE_FRAG ...]
+                        Similar to --replicates_tex. This value is for
+                        fragmented (or conventional) libraries.
+  
+```
+
+I will try this with one file only.
+
+```{bash}
+annogesic transcript --annotation_files ~/Mycobacteria_project/annogesic/ANNOgesic/input/references/annotations/AL123456.3.gff3 --compare_feature_genome gene CDS --frag_libs ~/Mycobacteria_project/annogesic/ANNOgesic/input/wigs/fragment/SRR3725585.Forward.wig:frag:1:a:+ ~/Mycobacteria_project/annogesic/ANNOgesic/input/wigs/fragment/SRR3725585.Reverse.wig:frag:1:a:- --replicate_frag all_1 --project_path ~/Mycobacteria_project/annogesic/ANNOgesic
+
+```
+
+Error: The SRR3725585.Forward.wig can not be found in lib names!!!
+What are the lib names?
+
+```{bash}
+WIG_FOLDER="ANNOgesic/input/wigs/tex_notex"
+TEX_LIBS="$WIG_FOLDER/SRR3725585.Forward.wig:frag:1:a:+ SRR3725585.Reverse.wig:frag:1:a:-"
+```
+
+But my libraries are in frag libs?
+Same error.
+
+
+
+```
+Running transcript detection
+Parsing AL123456.3.gff
+Parsing SRR3725585.Reverse.wig
+Parsing SRR3725585.Forward.wig
+Merging wig files of AL123456.3
+Importing fragment wig files
+Computing transcripts for AL123456.3
+Error: The SRR3725585.Forward.wig can not be found in lib names!!!
+Error: The SRR3725585.Forward.wig can not be found in lib names!!!
+Merging gff files of AL123456.3
+Parsing AL123456.3_transcript.gff
+Merging gff files of AL123456.3_transcript
+Error: There are folders which contain no gff3 files! The files should end with .gff!
+```
+
+No clue. Supposedly, only files required are .wig files. 
+
+
+```
+log.txt
+/Users/jenniferstiens/Mycobacteria_project/annogesic/ANNOgesic/input/references/annotations/AL123456.3.gff3 exists
+Running transcript_detection.py for detecting transcripts based on fragmented libs.
+	/Users/jenniferstiens/Mycobacteria_project/annogesic/ANNOgesic/output/transcripts/gffs/AL123456.3_transcript.gff is generated.
+Running fill_gap.py to modify transcripts based on genome annotations.
+```
+Looks like it didn't create transcript gff which I need for next step? 
+
+Another reason this is hard to use, doesn't really tell you what is going wrong.
+
+3 March 2021
+
+Trying again with nothing in project file--allow it to source wigs and put in correct folders? Rearranging parameters to match order in script on github (https://github.com/Sung-Huan/ANNOgesic/blob/master/bin/annogesic)
+
+get rid of '--compare_feature_genome' bit. I think this is problem--looks for another genome to compare to.
+
+
+```{bash}
+annogesic transcript --project_path /Users/jenniferstiens/Mycobacteria_project/annogesic/ANNOgesic --annotation_files /Users/jenniferstiens/Mycobacteria_project/annogesic/ANNOgesic/input/references/annotations/AL123456.3.gff3 --frag_libs /Users/jenniferstiens/Mycobacteria_project/annogesic/ANNOgesic/input/wigs/fragment/SRR3725585_Forward.wig:frag:1:a:+ /Users/jenniferstiens/Mycobacteria_project/annogesic/ANNOgesic/input/wigs/fragment/SRR3725585_Reverse.wig:frag:1:a:- --replicate_frag all_1 
+```
+
+keep getting this error:
+Error: The SRR3725585.Forward.wig can not be found in lib names!!!
+Error: The SRR3725585.Forward.wig can not be found in lib names!!!
+
+Is there something wrong with my .wig files?
+Changed filenames to be SRR3725585_Forward.wig instead of .Forward.wig. no difference.
+
+put wigs back in ANNOgesic/input/fragment/wigs, new error:
+
+Error: The SRR3725585_Forward.wig_folder can not be found in lib names!!!
+Error: The SRR3725585_Forward.wig_folder can not be found in lib names!!!
+
+How do you set lib names?
+
+annogesiclib/lib_reader.py: function read_libs(input_lib, wig_folder)
+
+(https://github.com/Sung-Huan/ANNOgesic/blob/master/annogesiclib/lib_reader.py)
+
+error when parsing first line to assign name?
+
+```
+>>> os.listdir(path="Mycobacteria_project/annogesic/ANNOgesic/input/wigs/fragment/")
+['SRR3725585_Reverse.wig', 'SRR3725585_Forward.wig']
+```
+
+maybe error is they use os.listdir to parse names/folders of wig files and it doesn't work when I put '~' before path?
+same error.
+
+https://github.com/Sung-Huan/ANNOgesic/issues/11
+
+needs another line at top of .wig file similar to:https://github.com/Sung-Huan/ANNOgesic/issues/11
+
+```
+for lib in input_libs:
+        datas = lib.split(":")
+        name = None
+        for wig in os.listdir(wig_folder):
+            if wig == datas[0]:
+                with open(os.path.join(wig_folder, wig), "r") as w_h:
+                    for line in w_h:
+                        line = line.strip()
+                        if line.startswith("track"):
+                            name = line.split("=")[-1].replace("\"", "")
+                            break
+        if name is None:
+            print("Error: The {0} can not be found in lib names!!!".format(wig)) 
+```
+
+try without annotation files:
+
+```{bash}
+annogesic transcript --project_path ~/Mycobacteria_project/annogesic/ANNOgesic --frag_libs ~/Mycobacteria_project/annogesic/ANNOgesic/input/wigs/fragment/SRR3725585_Forward.wig:frag:1:a:+ ~/Mycobacteria_project/annogesic/ANNOgesic/input/wigs/fragment/SRR3725585_Reverse.wig:frag:1:a:- --replicate_frag all_1 
+```
+
+same libnames error, also python error:
+```
+File "/Users/jenniferstiens/anaconda3/envs/rna/lib/python3.6/site-packages/annogesiclib/plot_tran.py", line 13, in plot
+    ticks = max(lens) / 50
+ValueError: max() arg is an empty sequence
+```
+definitely needs annotation sequence.
+
+worked on adding print statements to individual python scripts in annogesic package: 
+```
+/Users/jenniferstiens/anaconda3/envs/rna/lib/python3.6/site-packages/annogesiclib
+```
+
+issue ended up being about header on wig file:
+https://github.com/Sung-Huan/ANNOgesic/issues/11
+
+added correct header to files, ran and it generated transcript files.
+
+now run srna finder
+
+```{bash}
+annogesic srna --project_path --project_path ~/Mycobacteria_project/annogesic/ANNOgesic --filter_info none --transcript_files ~/Mycobacteria_project/annogesic/ANNOgesic/output/transcripts/gffs/AL123456.3_transcript.gff --annotation_files ~/Mycobacteria_project/annogesic/ANNOgesic/input/references/annotations/AL123456.3.gff3 --fasta_files ~/Mycobacteria_project/annogesic/ANNOgesic/input/references/fasta_files/AL123456.3.fasta --frag_libs ~/Mycobacteria_project/annogesic/ANNOgesic/input/wigs/fragment/SRR3725585_Forward.wig:frag:1:a:+ ~/Mycobacteria_project/annogesic/ANNOgesic/input/wigs/fragment/SRR3725585_Reverse.wig:frag:1:a:- --replicate_frag all_1
+
+
+#--utr_derived_srna, -u
+                       # Assign to detect UTR-derived sRNA. Default is False.
+                       
+```
+also requires fasta files (evidently). added into above. also got error regarding 'no replicate numbers', added --replicate_frag all_1 same as for transcript detection
+
+very fast, but only doing one file at a time. maybe see if I can do whole dataset on server?
+
+23 Feb 2021
+
+## APERO TESTING
+
+Apero: running on laptop takes nearly 24 hours for 5' end for one bam. Run 3' ends on server? (run_apero.R). if i want to run nohup, need to write shell script.
+
+```{r}
+## run apero
+# https://github.com/Simon-Leonard/APERO
+
+#usage: R CMD BATCH /d/in16/u/sj003/scripts/run_apero.R
+
+if (!require(APERO)) devtools::install_github("Simon-Leonard/APERO")
+
+library(Rsamtools)
+library(reshape2)
+library(snowfall)
+library(APERO)
+
+# load annotation file
+h37<-read.csv("/d/in16/u/sj003/refseqs/Mtb/proteins_166_159857.csv", header = TRUE, stringsAsFactors = F)
+# format ptt df
+h37_ptt<-data.frame(paste(h37$Start, h37$Stop, sep=".."), h37$Strand, h37$Length,
+                h37$Protein.product, h37$Locus.tag, h37$Locus, " ", " ",
+                h37$Protein.Name)
+colnames(h37_ptt)<-c("Location", "Strand", "Length", "PID", "Gene", "Synonym", "Code", "COG", "Product")
+
+#wmax= min accepted width of start peak
+# min_dist = minimum dist between separated start sites
+# 5'end detection
+
+bam_dir="/d/in19/u/zchayyt/sample_accessions/PRJNA327080_15/BWA_mem/"
+bam_file="SRR3725585_sorted.bam"
+bam_base<-sub('_sorted.bam', '', bam_file) 
+
+res=APERO_start_detection(work_dir = bam_dir, bam_name = bam_file,
+                          ptt_file = h37_ptt, wmax = 10, min_dist = 10, enrichment = 0.1, min_read_number = 0, genome_size = 4411532
+)
+
+#write table of 5' end results
+write.table(res, file=paste("/d/in16/u/sj003/APERO/apero_5prime_", bam_base, ".txt", sep=""), quote=F, sep="\t")
+
+print("finished 5' ends")
+
+#3'end detection
+res2=APERO_end_detection(work_dir = bam_dir, start_table = res, mTEX_bam = bam_file,
+                         readthrough_proportion = 0.01, Fmin=NA, thread_number = 8, genome_size = 4411532, ptt_file=h37_ptt
+)
+
+#write table of 3' end results
+write.table(res, file=paste("/d/in16/u/sj003/APERO/apero_3prime_", bam_base, ".txt", sep=""), quote=F, sep="\t")
+
+print("finished 3' ends")
+
+                                           
+```
+
+
+
+```{bash run_conda_apero.sh}
+#!/bin/bash
+# usage: run_conda_apero.sh
+#shell script to run R script in background
+
+source ~/.bashrc
+conda activate r_4.0
+R CMD BATCH /d/in16/u/sj003/scripts/run_apero.R
+```
+
+
+```{bash}
+chmod +x scripts/run_conda_apero.sh
+nohup scripts/run_conda_apero.sh >& run_apero_r.out &
+```
+
+when I run on server (in r_4.0 env), getting error:
+
+```
+Error: package or namespace load failed for ‘GenomeInfoDb’ in loadNamespace(i, c(lib.loc, .libPaths()), versionCheck = vI[[i]]):
+ there is no package called ‘GenomeInfoDbData’
+Error: package ‘GenomeInfoDb’ could not be loaded
+```
+try this:
+```{bash}
+conda install -c bioconda/label/broken bioconductor-genomeinfodb
+```
+
+no luck. I forgot to put "dependencies=FALSE" when installing apero. maybe it is masking loaded packages. may need to uninstall package?
+Did both, but no change.
+
+try in r_3.6. Have to install packages here.
+```{bash}
+conda activate r_3.6
+conda install -c r r-reshape2
+conda install -c bioconda r-snowfall 
+#conda install -c bioconda bioconductor-rsamtools
+
+```
+
+This seems to be working. i'm assuming I've installed something incorrectly in 4.0 env. 
+
+Running completely on server. Takes 24 hours. Generates two files, one for 5' ends and one for 3' ends.
+
+look at data (run_apero.R)
+
+```{r}
+library(dplyr)
+data<-read.delim("~/Mycobacteria_project/APERO/apero_3prime_SRR3725585.txt", sep = "\t", header=T, stringsAsFactors = F)
+nrow(data)
+# 199951    !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+#Obviously need to filter for minimum number of read starts. They suggest 20x total number of reads? frequency 
+#10469100*20/4411532
+#frequency >47
+# filter to get rid of internal starts?
+filtered_data<-data[which(data$freq > 47),]
+nrow(filtered_data)
+#[1] [1] 4742
+apero_df<-NULL
+apero_df<-data.frame(as.integer(filtered_data$Position), as.integer(filtered_data$lg), filtered_data$str, filtered_data$Class)
+head(apero_df)
+colnames(apero_df)<-c("start", "length", "strand", "class")
+head(apero_df$class)
+
+#number of "O" transcripts that represent 'orphan' intergenic
+p_rna<-NULL
+ig_rna<-apero_df[which(apero_df$class=="O"), ]
+ig_rna<-apero_df[grepl("O", apero_df$class),]
+length(ig_rna)
+#4
+ig_rna
+#number of "P" transcripts that represent 'primary': upstream but non-overlapping with CDS (within 250nt of CDS on same strand)
+p_rna<-apero_df[grepl("P", apero_df$class),]
+length(p_rna)
+p_rna
+#412
+#number of 'Div' txts: within 250nts downstream of opposite strand gene (only Div)
+# don't want 3U/5U/Chev/Internal 
+div_rna<-apero_df[grepl("^Div", apero_df$class),]
+View(div_rna)
+#44 
+#number of Div that are also antisense to 3' and 5' utrs, and also primary or antisense?
+more_div<-apero_df[grepl("Div", apero_df$class),]
+nrow(more_div)
+#540
+View(more_div)
+# still contains some with 3U and I
+#probably easier to exclude: I, Chev, 3U, 5U, as these overlap CDS
+exclude<-c("I","Chev","3U","5U")
+few_div<-NULL
+
+#grepl wont work with list
+#e_rna<-apero_df[!grepl(exclude, apero_df$class),]
+#not_want<-any(sapply(exclude, function(x) grepl(x, apero_df$class)))
+
+
+
+```
+
+(Mycobacteria_project/APERO/APERO_supData_v8.pdf)
+
+What am I looking to do with this? Compare intergenic sRNAs predicted with known list?
+

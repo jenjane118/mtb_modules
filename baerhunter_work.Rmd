@@ -1500,7 +1500,7 @@ feature_file_editor(bam_directory="/d/in19/u/zchayyt/sample_accessions/PRJNA2787
 
 In order to run scripts in correct environment, with nohup, made shell script:
 
-```{bash conda_shell}
+```{bash run_conda_r.sh}
 #!/bin/bash
 source ~/.bashrc
 conda activate r_3.6
@@ -1853,7 +1853,7 @@ feature_file_editor(bam_directory="~/bam_files/PRJNA390669_12/",
 
 This does seem to work. In order to do this on server, made a local copy of repository on server and use to access scripts. This might be an issue if I change locally and then need to access changes? But probs not changing functions any further.
 
-```{r}
+```{r bh_run_ffe.R}
 library(devtools)
 #devtools::install_github("jenjane118/baerhunter", dependencies=FALSE)
 # local copy of bh
@@ -1888,6 +1888,12 @@ feature_file_editor(bam_directory="/d/in19/u/zchayyt/sample_accessions/PRJNA3906
 ```
 
 Check file to see how many sRNAs/UTRs for each dataset.
+
+
+
+
+
+
 ```
 res_07_12_327080
 #num_pred_sRNA num_sRNA_confirmed       num_pred_UTR  num_UTR_confirmed 
@@ -1899,34 +1905,6 @@ res_07_12_390669
 
 ```
 Pretty consistent numbers between two datasets.
-
-
-Install Apero and run on sample .bam
-
-[Apero docs/code](https://github.com/Simon-Leonard/APERO)
-
-```{r apero}
-install.packages("reshape2")
-install.packages("snowfall")
-devtools::install_github("Simon-Leonard/APERO")
-
-library(Rsamtools)
-library(reshape2)
-library(snowfall)
-
-library(APERO)
-# 5'end detection
-res=APERO_start_detection(work_dir = ".", bam_name = "~/bam_files/PRJNA327080_15/SRR3725585_sorted.bam",
-                          wmax = 3, min_dist = 10, enrichment = 0.1, min_read_number = 0, genome_size = 4411532
-                          )
-
-```
-
-Used a smaller wmax than default, as it starts with 1 and then keeps looking at larger windows until max. Wmax is start site window--how big the window is that has a significantly larger number of start sites of reads within it (width of start peak). Usually 1-3nt. But they use window of 10? for all their analysis in paper. (same as distance?). Takes hours.
-
-Apero particularly suited to size-selected, unfragmented, RNA where entire fragment is represented by a read. ONly for paired-end reads. (https://academic.oup.com/nar/article/47/15/e88/5506866)
-
-Will not automatically filter between or before/after CDS. You can enter an annotation file but this must be in .ptt form and loaded in R. I'm considering just checking against IRanges object from baerhunter.
 
 Ran BH for all 4 datasets and combined the .gff3 files into one file. It's a little messy with the annotation, but the coordinates ok.
 
@@ -2098,3 +2076,250 @@ Look at some of the others on artemis, but we can filter out longest sRNAs. Mayb
 
 Used presrat server and downloaded predicted srna from genome of h37rv. Maybe look to see if there is any overlap between any of these and our predicted srnas?
 
+Did this--look at presrat_compare.R, no overlap.
+
+22Feb
+
+Look at some of long sRNAs on artemis, decide on filter step. (before merging gffs, or even in BH, before creating gff)
+
+![long RNA bam view](~/git/mtb_modules/Images/longRNA110564.png)
+
+Looking at what datasets have the really long gffs. I suspect they are mostly coming with PRJNA390669_12.
+
+Check numbers of long sRNAs above before merging. (long_srnas.R)
+
+```{r long_srnas.R}
+# long srnas
+
+# run this on each dataset to see how many long srnas
+
+library(rtracklayer)
+
+annot <- import.gff3("~/git/mtb_modules/output_BH_07_12/PRJNA390669_12.gff3")
+pred.sRNA <- subset(annot, type == "putative_sRNA")
+pred.UTR <- subset(annot, type == "putative_UTR")
+w<-width(pred.sRNA)
+mean(w)
+#522
+min(w)
+#47
+max(w)
+#6098
+long_srnas<-as.data.frame(pred.sRNA[which(width(pred.sRNA)>1000),2:3])
+write.table(long_srnas, "long_srnas.txt", sep = "\t", quote = FALSE, row.names = FALSE, col.names = FALSE, append = TRUE)
+nrow(long_srnas)
+#45
+
+annot <- import.gff3("~/git/mtb_modules/output_BH_07_12/PRJNA327080_15.gff3")
+pred.sRNA <- subset(annot, type == "putative_sRNA")
+pred.UTR <- subset(annot, type == "putative_UTR")
+w<-width(pred.sRNA)
+mean(w)
+#351
+min(w)
+#84
+max(w)
+#4130
+long_srnas<-as.data.frame(pred.sRNA[which(width(pred.sRNA)>1000),2:3])
+#write.table(long_srnas, "long_srnas.txt", sep = "\t", quote = FALSE, row.names = FALSE, col.names = FALSE, append = TRUE)
+nrow(long_srnas)
+#10
+long_srnas
+
+annot <- import.gff3("~/git/mtb_modules/output_BH_08_12/PRJNA278760_22.gff3")
+pred.sRNA <- subset(annot, type == "putative_sRNA")
+pred.UTR <- subset(annot, type == "putative_UTR")
+w<-width(pred.sRNA)
+mean(w)
+#198
+min(w)
+#33
+max(w)
+#1287
+long_srnas<-as.data.frame(pred.sRNA[which(width(pred.sRNA)>1000),2:3])
+#write.table(long_srnas, "long_srnas.txt", sep = "\t", quote = FALSE, row.names = FALSE, col.names = FALSE, append = TRUE)
+nrow(long_srnas)
+#2
+
+long_srnas
+```
+
+```
+> long_srnas
+     seqnames   start     end width strand          type score
+1  AL123456.3   50578   51786  1209      + putative_sRNA    NA
+2  AL123456.3  630290  631934  1645      - putative_sRNA    NA
+3  AL123456.3  987231  988259  1029      - putative_sRNA    NA
+4  AL123456.3 1136883 1137892  1010      + putative_sRNA    NA
+5  AL123456.3 1271147 1272157  1011      - putative_sRNA    NA
+6  AL123456.3 1477072 1481201  4130      + putative_sRNA    NA
+7  AL123456.3 1482881 1484082  1202      + putative_sRNA    NA
+8  AL123456.3 1960675 1962115  1441      + putative_sRNA    NA
+9  AL123456.3 2336631 2337976  1346      - putative_sRNA    NA
+10 AL123456.3 2465476 2466983  1508      - putative_sRNA    NA
+```
+
+These 10 from PRJNA327080_15 are also in the 45 predicted by PRJNA390669_12, only 2 in the largest dataset PRJNA278760_22. Increase value of high cutoff by *3 instead of 2 and see if that helps get rid of long sRNAs.
+
+Changed script inside baerhunter directory in my local version of BH. Ran using shell script (run_conda_r.sh) to call R script (bh_run_ffe.R):
+
+```{bash}
+chmod +x scripts/run_conda_r.sh
+nohup scripts/run_conda_r.sh >& run_conda_r.out &
+# definitely needed >& <filename>, or it looked for terminal and stopped job
+```
+
+forgot to change script to make new output file, so will be listed as 'output_BH_08_12'. first dataset is PRJNA278760_22_Safa. This didn't work, as already had checked that directory exists. Re-do.
+
+maybe for next ones, just have them iterate through list of datasets?
+dataset_list.txt.
+
+```{r}
+library(devtools)
+#devtools::install_github("jenjane118/baerhunter", dependencies=FALSE)
+# local edits
+devtools::load_all("/d/in16/u/sj003/baerhunter")
+library(baerhunter)
+library(GenomicAlignments)
+library(IRanges)
+library(Rsamtools)
+library(Rsubread)
+
+## functions to get functions to re-define (from local version)
+source("/d/in16/u/sj003/baerhunter/R/feature_file_editor.R")
+
+# create new directory for results
+
+if (!(dir.exists("./output_BH_28_02/"))) { dir.create("./output_BH_28_02/")
+}
+# Read in list of datasets
+directory_list <- scan("dataset_list.txt", what="", sep="\n")
+print(directory_list)
+
+
+for (i in 1: length(directory_list)){
+  dataset_name<-sub("/d/in19/u/zchayyt/sample_accessions/", "",    directory_list[i])
+  dataset_name<-sub("/BWA_mem/", "", dataset_name)
+  dataset_name<-paste("output_BH_28_02_", dataset_name, ".gff3", sep="")
+
+# run feature_file_editor to create .gff3 file with new annotations
+  feature_file_editor(bam_directory=directory_list[i],
+                    original_annotation_file="Mtb_h37rv.ASM19595v2_AL123456.3.gff3",
+                    annot_file_dir = "/d/in16/u/sj003/refseqs/Mtb/",
+                    output_file= datset_name,
+                    original_sRNA_annotation="ncRNA",
+                    min_sRNA_length=30,
+                    min_UTR_length=50,
+                    paired_end_data=TRUE,
+                    strandedness="reversely_stranded")
+}
+
+```
+
+Ran successfully iterating through all datasets with new high covg parameter of 3* low covg threshold. Now check each gff and see how many srnas predicted.
+
+```{r long_srnas.R}
+# long srnas
+
+# run this on each dataset to see how many long srnas
+
+library(rtracklayer)
+
+annot <- import.gff3("~/git/mtb_modules/bh_gffs/output_BH_28_02/output_BH_28_02_PRJNA390669_12.gff3")
+pred.sRNA <- subset(annot, type == "putative_sRNA")
+pred.UTR <- subset(annot, type == "putative_UTR")
+w<-width(pred.sRNA)
+mean(w)
+#522 vs 590.29
+min(w)
+#47 vs 99
+max(w)
+#6098
+long_srnas<-as.data.frame(pred.sRNA[which(width(pred.sRNA)>1000),2:3])
+#write.table(long_srnas, "long_srnas.txt", sep = "\t", quote = FALSE, row.names = FALSE, col.names = FALSE, append = TRUE)
+nrow(long_srnas)
+#45 vs 34
+
+annot <- import.gff3("~/git/mtb_modules/bh_gffs/output_BH_28_02/output_BH_28_02_PRJNA327080_15.gff3")
+pred.sRNA <- subset(annot, type == "putative_sRNA")
+pred.UTR <- subset(annot, type == "putative_UTR")
+w<-width(pred.sRNA)
+mean(w)
+#351 vs 428.5982
+min(w)
+#84 vs 114
+max(w)
+#4130
+long_srnas<-as.data.frame(pred.sRNA[which(width(pred.sRNA)>1000),2:3])
+#write.table(long_srnas, "long_srnas.txt", sep = "\t", quote = FALSE, row.names = FALSE, col.names = FALSE, append = TRUE)
+nrow(long_srnas)
+#10 vs 9
+long_srnas
+
+annot <- import.gff3("~/git/mtb_modules/bh_gffs/output_BH_28_02/output_BH_28_02_PRJNA278760_22.gff3")
+head(annot)
+pred.sRNA <- subset(annot, type == "putative_sRNA")
+head(pred.sRNA)
+## none present--what went wrong here?
+pred.UTR <- subset(annot, type == "putative_UTR")
+w<-width(pred.sRNA)
+mean(w)
+
+min(w)
+
+max(w)
+
+long_srnas<-as.data.frame(pred.sRNA[which(width(pred.sRNA)>1000),2:3])
+#write.table(long_srnas, "long_srnas.txt", sep = "\t", quote = FALSE, row.names = FALSE, col.names = FALSE, append = TRUE)
+nrow(long_srnas)
+#2
+long_srnas
+
+annot <- import.gff3("~/git/mtb_modules/bh_gffs/output_BH_28_02/output_BH_28_02_PRJEB65014.gff3")
+pred.sRNA <- subset(annot, type == "putative_sRNA")
+pred.UTR <- subset(annot, type == "putative_UTR")
+w<-width(pred.sRNA)
+mean(w)
+#362.8947
+min(w)
+#70
+max(w)
+#1087
+long_srnas<-as.data.frame(pred.sRNA[which(width(pred.sRNA)>1000),2:3])
+#write.table(long_srnas, "long_srnas.txt", sep = "\t", quote = FALSE, row.names = FALSE, col.names = FALSE, append = TRUE)
+nrow(long_srnas)
+#2
+long_srnas
+# same as before
+```
+Didn't run on Safa's data because that is slightly different directory structure, not in BWA_mem subdirectory like the others.
+
+Run independently.
+
+Use comb_gff.R but adding steps to filter out long srnas before combining.
+
+#how many in combined list are confirmed?
+
+```{r}
+library(rtracklayer)
+res_combined_01_03<-compare_known_with_predicted(annotation_file = "combined_gffs_01_03.gff3", 
+                                                 minoverlap = 5L,
+                                                 known_RNA_file = "ncRNA_verified.txt"
+)
+res_combined_01_03
+#num_pred_sRNA num_sRNA_confirmed       num_pred_UTR  num_UTR_confirmed 
+# 972                 25               2170                150 
+#num_pred_sRNA num_sRNA_confirmed       num_pred_UTR  num_UTR_confirmed 
+# 454                 14               1829                 68
+
+annot <- import.gff3("combined_gffs_08_12.gff3")
+pred.sRNA <- subset(annot, type == "putative_sRNA")
+pred.UTR <- subset(annot, type == "putative_UTR")
+w<-width(pred.sRNA)
+mean(w)
+min(w)
+max(w)
+long_srnas<-as.data.frame(pred.sRNA[which(width(pred.sRNA)>1000),2:3])
+write.table(long_srnas, "long_srnas.txt", sep = "\t", quote = FALSE, row.names = FALSE, col.names = FALSE, append = TRUE)
+
+```

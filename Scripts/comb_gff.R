@@ -13,29 +13,40 @@ library(baerhunter)
 # import each .gff and subset by ncRNAs
 ref<-import.gff3("ref_seqs/Mtb_h37rv.ASM19595v2_AL123456.3.gff3")
 
-g1<-import.gff3("output_BH_07_12/PRJNA327080_15.gff3")
-g2<-import.gff3("output_BH_07_12/PRJNA390669_12.gff3")
-g3<-import.gff3("output_BH_08_12/PRJEB65014_3.gff3")
-g4<-import.gff3("output_BH_08_12/PRJNA278760_22.gff3")
+g1<-import.gff3("bh_gffs/output_BH_28_02/output_BH_28_02_PRJNA327080_15.gff3")
+g2<-import.gff3("bh_gffs/output_BH_28_02/output_BH_28_02_PRJNA390669_12.gff3")
+g3<-import.gff3("bh_gffs/output_BH_28_02/output_BH_28_02_PRJEB65014.gff3")
+g4<-import.gff3("bh_gffs/output_BH_01_03_PRJNA278760_22.gff3")
 
 # add all sRNAs and utrs to common list (do these separately)
 srnas_gr1<-g1[elementMetadata(g1)[,"type"] %in% "putative_sRNA"]
+# filter for sRNAs/UTRs > 1000 nt
+srnas_gr1<-srnas_gr1[which(width(srnas_gr1)<=1000),]
 utrs_gr1<-g1[elementMetadata(g1)[,"type"] %in% "putative_UTR"]
+utrs_gr1<-utrs_gr1[which(width(utrs_gr1)<=1000),]
 srnas_gr2<-g2[elementMetadata(g2)[,"type"] %in% "putative_sRNA"]
+srnas_gr2<-srnas_gr2[which(width(srnas_gr2)<=1000),]
 utrs_gr2<-g2[elementMetadata(g2)[,"type"] %in% "putative_UTR"]
+utrs_gr2<-utrs_gr2[which(width(utrs_gr2)<=1000),]
 srnas_gr3<-g3[elementMetadata(g3)[,"type"] %in% "putative_sRNA"]
+srnas_gr3<-srnas_gr3[which(width(srnas_gr3)<=1000),]
 utrs_gr3<-g3[elementMetadata(g3)[,"type"] %in% "putative_UTR"]
+utrs_gr3<-utrs_gr3[which(width(utrs_gr3)<=1000),]
 srnas_gr4<-g4[elementMetadata(g4)[,"type"] %in% "putative_sRNA"]
+srnas_gr4<-srnas_gr4[which(width(srnas_gr4)<=1000),]
 utrs_gr4<-g4[elementMetadata(g4)[,"type"] %in% "putative_UTR"]
+utrs_gr4<-utrs_gr4[which(width(utrs_gr4)<=1000),]
+
 
 total_srnas_gr<-c(srnas_gr1, srnas_gr2, srnas_gr3, srnas_gr4)
 length(total_srnas_gr)
-#1552
+#1552 v 785
 
 # reduce to align ranges and merge overlapping ranges, those with specified gap between 
 # will not be merged, revmap returns list of overlapping ranges
 red_srnas_gr<-reduce(total_srnas_gr, min.gapwidth=1L)
 ## with 1L min.gapwidth==2879 ranges, with 3L==2874 ranges, with 5L==2866 ranges
+
 
 # do the same with utrs
 total_utrs_gr<-c(utrs_gr1, utrs_gr2, utrs_gr3, utrs_gr4)
@@ -116,21 +127,102 @@ while (grepl("#",f[i])==TRUE) {
 header <- c(header, "# produced by baerhunter")
 
 ## Create the final GFF3 file.
-output_file<-"combined_gffs_08_12.gff3"
+output_file<-"combined_gffs_01_03.gff3"
 write.table(header, output_file, sep = "\t", quote = FALSE, row.names = FALSE, col.names = FALSE)
 write.table(annotation_dataframe, output_file, sep = "\t", quote = FALSE, row.names = FALSE, col.names = FALSE, append = TRUE)
 
 #how many in combined list are confirmed?
-source("~/git/mtb_modules/Scripts/verifying_BHgffs.R")
-res_combined_08_12<-compare_known_with_predicted(annotation_file = "combined_gffs_08_12", 
+# function from verifying_BHgffs.R
+compare_known_with_predicted <- function(annotation_file, known_RNA_file, minoverlap=minoverlap) {
+  # import the homemade ncRNA file using rtracklayer's import function
+  library(rtracklayer)
+  # creates a GRanges object
+  annot <- import.gff3(annotation_file)
+  head(annot)
+  
+  # create subsets of the putative sRNAs and UTRs first
+  pred.sRNA <- subset(annot, type == "putative_sRNA")
+  head(pred.sRNA)
+  #min(width(pred.sRNA))
+  pred.UTR <- subset(annot, type == "putative_UTR")
+  #num.pred.sRNA.plus <- length(ranges(subset(annot, (type == "putative_sRNA") & (strand == "+")) ) ) 
+  #num.pred.sRNA.minus <- length(ranges(subset(annot, (type == "putative_sRNA") & (strand == "-")) ) ) 
+  #num.pred.UTRs.plus <- length(ranges(subset(annot, (type == "putative_UTR") & (strand == "+")) ) ) 
+  #num.pred.UTRs.minus <- length(ranges(subset(annot, (type == "putative_UTR") & (strand == "-")) ) ) 
+  
+  # read in the data from ncRNAs_and_TSS.txt file made with Gerrick and TSS annotations
+  known.ori <- read.table(file=known_RNA_file, header=FALSE,   
+                          sep = " ", skip=1) 
+  # select necessary columns
+  known <- known.ori[,1:7]
+  colnames(known)<-c("Chromosome", "sRNA_ID", "start", "end", "strand", "distance", "TSS")
+  head(known)
+  
+  #seqnames need to match what's in predicted file (AL123456.3)
+  # used different annotation file first time ran BH (NC)
+  known.all <- GRanges(
+    seqnames ="AL123456.3", 
+    #seqnames = "NC_000962.3",
+    ranges   =IRanges(start=known$start, end=known$end), 
+    strand   =Rle(strand(known$strand)),
+    sRNA_ID  =known$sRNA_ID
+  )
+  head(known.all)
+  # should we filter this for sRNAs with TSS sites?
+  
+  
+  # need to make a new UTR list from TSS site list
+  # read in data from "comb_cortesTSS_srna.txt" for TSS sites
+  known_TSS_file = "comb_cortesTSS_srna.txt"
+  tss <- read.table(file=known_TSS_file, header=T, sep = " ")
+  #head(tss)
+  # create 5'UTR list from TSS sites?
+  utr.tss <- GRanges(
+    seqnames = "AL123456.3",
+    #seqnames = "NC_000962.3",
+    ranges   = IRanges(start=tss$Genome.position, end=tss$Genome.position),
+    strand   = Rle(strand(tss$Strand))
+  )
+  
+  # we ignore the strand and count features on both strands (ignore.strand=T).
+  # In the original GRanges for known.all, the starts and ends are strand specific, 
+  # ie. forward start is < end and for reverse, start > end. In my list, use strand 
+  # and all starts are < ends).
+  
+  sRNA.hits <- findOverlaps(known.all, pred.sRNA, type="any", minoverlap=minoverlap, ignore.strand=F) 
+  #UTR.hits <- findOverlaps(utr.tss, pred.UTR, type="any", minoverlap=1, ignore.strand=FALSE ) 
+  #filter for tss within first 20nts of start (should we be doing this with sRNAs, too?)
+  UTR.hits <- findOverlaps(utr.tss, pred.UTR, type="start", maxgap=20, minoverlap=1, ignore.strand=F)
+  
+  #how many predicted hits  are confirmed?
+  num_UTR_confirmed <- length(unique(subjectHits(UTR.hits)))
+  num_sRNA_confirmed <- length(unique(subjectHits(sRNA.hits)))
+  num_all_confirmed <- length(unique(c(subjectHits(UTR.hits), subjectHits(sRNA.hits))))
+  
+  num_UTR_confirmed
+  num_sRNA_confirmed
+  num_all_confirmed
+  
+  num_pred_UTR <- length(ranges(pred.UTR))
+  num_pred_sRNA <- length(ranges(pred.sRNA))
+  num_pred_UTR
+  num_pred_sRNA 
+  res <- c(num_pred_sRNA, num_sRNA_confirmed,
+           num_pred_UTR, num_UTR_confirmed)
+  names(res) <- c('num_pred_sRNA', 'num_sRNA_confirmed',
+                  'num_pred_UTR', 'num_UTR_confirmed')
+  return(res)
+}
+
+res_combined_01_03<-compare_known_with_predicted(annotation_file = "combined_gffs_01_03.gff3", 
                                                  minoverlap = 5L,
                                                  known_RNA_file = "ncRNA_verified.txt"
 )
-res_combined_08_12
+res_combined_01_03
 #num_pred_sRNA num_sRNA_confirmed       num_pred_UTR  num_UTR_confirmed 
-# 972                 25               2170                150 
+#  510                 17               1958                136 
 
-annot <- import.gff3("combined_gffs_08_12.gff3")
+annot <- import.gff3("combined_gffs_01_03.gff3")
 pred.sRNA <- subset(annot, type == "putative_sRNA")
 pred.UTR <- subset(annot, type == "putative_UTR")
 w<-width(pred.sRNA)
@@ -138,9 +230,16 @@ mean(w)
 min(w)
 max(w)
 long_srnas<-as.data.frame(pred.sRNA[which(width(pred.sRNA)>1000),2:3])
-write.table(long_srnas, "long_srnas.txt", sep = "\t", quote = FALSE, row.names = FALSE, col.names = FALSE, append = TRUE)
+long_srnas
+#> long_srnas
+#seqnames   start     end width strand          type score
+#1 AL123456.3  767366  768899  1534      + putative_sRNA    NA
+#2 AL123456.3 1271316 1272321  1006      - putative_sRNA    NA
+#3 AL123456.3 2058035 2059284  1250      - putative_sRNA    NA
+> 
+#write.table(long_srnas, "long_srnas.txt", sep = "\t", quote = FALSE, row.names = FALSE, col.names = FALSE, append = TRUE)
 
-# 56 are longer than 1000 nts
+# 56 are longer than 1000 nts (with earlier parameters)
 #this is a really long one:
 #AL123456.3	.	putative_sRNA	1065730	1066752	.	-	.	ID=putative_sRNA:m1065730_1066752;upstream_feature=m1067194_1073291;downstream_feature=m1064963_1065474
 

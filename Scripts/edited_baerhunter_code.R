@@ -125,7 +125,7 @@ peak_union_calc <- function(bam_location = ".", target_strand, peak_width, paire
     if (low_coverage_cutoff <5){
       low_coverage_cutoff<-5
     }
-    high_coverage_cutoff <- low_coverage_cutoff * 2
+    high_coverage_cutoff <- low_coverage_cutoff * 3
     #check what percentile that corresponds to
     low_coverage_cutoff #98
     rownames(ten_percent)[ten_percent == low_coverage_cutoff]

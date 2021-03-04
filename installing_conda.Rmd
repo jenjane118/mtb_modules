@@ -483,3 +483,13 @@ nohup scripts/run_conda_r.sh >& run_conda_r.out &
 
 Definitely running correct version of R, and baerhunter.
 
+
+if i wanted to change directory location for env use
+```{bash}
+conda create --prefix /tmp/test-env python=2.7
+```
+
+
+from irilenia:
+
+"By the way, if you ever need to do things this way, the solution is to define the .condarc file with environment and packages directories in there so that conda knows where to unpack all the stuff it downloads. It seems to work fine now."
