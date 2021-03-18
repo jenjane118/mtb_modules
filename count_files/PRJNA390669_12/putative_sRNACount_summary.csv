@@ -1,0 +1,15 @@
+"Status"	"SRR5689224_sorted"	"SRR5689225_sorted"	"SRR5689226_sorted"	"SRR5689227_sorted"	"SRR5689228_sorted"	"SRR5689229_sorted"	"SRR5689230_sorted"	"SRR5689231_sorted"	"SRR5689232_sorted"	"SRR5689233_sorted"	"SRR5689234_sorted"	"SRR5689235_sorted"
+"1"	"Assigned"	4367805	4309584	7191397	9509702	5963106	4891924	5711967	1747180	9434229	7719236	9751554	7061813
+"2"	"Unassigned_Unmapped"	23508	23420	36530	51410	58313	30595	30681	25029	25541	33485	81503	46175
+"3"	"Unassigned_Read_Type"	0	0	0	0	0	0	0	0	0	0	0	0
+"4"	"Unassigned_Singleton"	0	0	0	0	0	0	0	0	0	0	0	0
+"5"	"Unassigned_MappingQuality"	0	0	0	0	0	0	0	0	0	0	0	0
+"6"	"Unassigned_Chimera"	0	0	0	0	0	0	0	0	0	0	0	0
+"7"	"Unassigned_FragmentLength"	0	0	0	0	0	0	0	0	0	0	0	0
+"8"	"Unassigned_Duplicate"	0	0	0	0	0	0	0	0	0	0	0	0
+"9"	"Unassigned_MultiMapping"	0	0	0	0	0	0	0	0	0	0	0	0
+"10"	"Unassigned_Secondary"	0	0	0	0	0	0	0	0	0	0	0	0
+"11"	"Unassigned_NonSplit"	0	0	0	0	0	0	0	0	0	0	0	0
+"12"	"Unassigned_NoFeatures"	17917730	17230486	14483277	17844180	20821054	8683707	19815192	14818523	15902624	14789481	17910684	21377539
+"13"	"Unassigned_Overlapping_Length"	0	0	0	0	0	0	0	0	0	0	0	0
+"14"	"Unassigned_Ambiguity"	5868	8716	7999	22101	6056	6853	8756	165	51412	14015	23304	9486

@@ -1,4 +1,4 @@
-/d/in19/u/zchayyt/sample_accessions/PRJNA390669_12_RC/BWA_mem/
-/d/in19/u/zchayyt/sample_accessions/PRJNA327080_15/BWA_mem/
 /d/in19/u/zchayyt/sample_accessions/PRJEB65014_3/BWA_mem/
+/d/in19/u/zchayyt/sample_accessions/PRJNA327080_15/BWA_mem/
 /d/in19/u/zchayyt/sample_accessions/PRJNA278760_22_Safa/
+/d/in19/u/zchayyt/sample_accessions/PRJNA390669_12_RC/BWA_mem/

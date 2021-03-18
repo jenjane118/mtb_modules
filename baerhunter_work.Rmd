@@ -2260,20 +2260,8 @@ annot <- import.gff3("~/git/mtb_modules/bh_gffs/output_BH_28_02/output_BH_28_02_
 head(annot)
 pred.sRNA <- subset(annot, type == "putative_sRNA")
 head(pred.sRNA)
-## none present--what went wrong here?
-pred.UTR <- subset(annot, type == "putative_UTR")
-w<-width(pred.sRNA)
-mean(w)
+## none present--what went wrong here? (wrong directory structure in shell script)
 
-min(w)
-
-max(w)
-
-long_srnas<-as.data.frame(pred.sRNA[which(width(pred.sRNA)>1000),2:3])
-#write.table(long_srnas, "long_srnas.txt", sep = "\t", quote = FALSE, row.names = FALSE, col.names = FALSE, append = TRUE)
-nrow(long_srnas)
-#2
-long_srnas
 
 annot <- import.gff3("~/git/mtb_modules/bh_gffs/output_BH_28_02/output_BH_28_02_PRJEB65014.gff3")
 pred.sRNA <- subset(annot, type == "putative_sRNA")
@@ -2294,32 +2282,141 @@ long_srnas
 ```
 Didn't run on Safa's data because that is slightly different directory structure, not in BWA_mem subdirectory like the others.
 
-Run independently.
+Run independently ("output_BH_01_03_PRJNA278760_22.gff3")
 
-Use comb_gff.R but adding steps to filter out long srnas before combining.
+Use comb_gff.R but added steps to filter out long srnas before combining. (filtered all >1000)
 
-#how many in combined list are confirmed?
+#how many in combined list are 'confirmed' (i.e. sRNAs predicted by Gerrick and UTRs have TSS)?
 
 ```{r}
 library(rtracklayer)
-res_combined_01_03<-compare_known_with_predicted(annotation_file = "combined_gffs_01_03.gff3", 
-                                                 minoverlap = 5L,
+
+res_combined_01_03<-compare_known_with_predicted(annotation_file =                    "~/git/mtb_modules/BH_results/combined_gffs_01_03.gff3", minoverlap = 5L,
                                                  known_RNA_file = "ncRNA_verified.txt"
 )
 res_combined_01_03
-#num_pred_sRNA num_sRNA_confirmed       num_pred_UTR  num_UTR_confirmed 
-# 972                 25               2170                150 
-#num_pred_sRNA num_sRNA_confirmed       num_pred_UTR  num_UTR_confirmed 
-# 454                 14               1829                 68
 
-annot <- import.gff3("combined_gffs_08_12.gff3")
-pred.sRNA <- subset(annot, type == "putative_sRNA")
-pred.UTR <- subset(annot, type == "putative_UTR")
-w<-width(pred.sRNA)
-mean(w)
-min(w)
-max(w)
-long_srnas<-as.data.frame(pred.sRNA[which(width(pred.sRNA)>1000),2:3])
-write.table(long_srnas, "long_srnas.txt", sep = "\t", quote = FALSE, row.names = FALSE, col.names = FALSE, append = TRUE)
+#num_pred_sRNA num_sRNA_confirmed       num_pred_UTR  num_UTR_confirmed 
+#  510                 17               1958                136 
+
+
 
 ```
+
+Run baerhunter 'count_features' on all datasets with new bh gff (like Rosanna)? Or do I use R Subread 'feature counts?' like YenYi. Essentially, the same thing, with a formatted output file. Do I need to filter for expression?
+
+write script to iterate through datasets
+
+```{R bh_count_features.R}
+
+# usage: bh_count_features.R
+
+# script to use count_features function to count reads for newly annotated ncRNA and UTRs in 
+# multiple datasets
+
+library(devtools)
+#devtools::install_github("jenjane118/baerhunter", dependencies=FALSE)
+# local edits
+devtools::load_all("/d/in16/u/sj003/baerhunter")
+library(baerhunter)
+library(Rsamtools)
+library(Rsubread)
+
+## functions to get functions to re-define (from local version)
+#source("/d/in16/u/sj003/baerhunter/R/feature_file_editor.R")
+
+# create new directory for results
+
+if (!(dir.exists("./output_BH_15_03/"))) { dir.create("./output_BH_15_03/")
+}
+
+# Read in list of datasets
+directory_list <- scan("dataset_list.txt", what="", sep="\n")
+
+for (i in 1: length(directory_list)){
+  dataset_name<-sub("/d/in19/u/zchayyt/sample_accessions/", "",    directory_list[i])
+  dataset_name<-sub("/BWA_mem/", "/", dataset_name)
+  output_directory<-paste("/d/in16/u/sj003/output_BH_15_03/", dataset_name, sep="")
+  
+  print(output_directory)
+
+# run feature_file_editor to create .gff3 file with new annotations
+  count_features(bam_dir=directory_list[i],
+                    annotation_dir= "/d/in16/u/sj003/",
+                    annotation_file="combined_gffs_01_03.gff3",
+                    output_dir=output_directory,
+                    chromosome_alias_file="/d/in16/u/sj003/chromosome.txt",
+                    target_features=c("gene","putative_sRNA", "putative_UTR"),
+                    strandedness="reversely_stranded",
+                    is_paired_end=TRUE
+                    )
+}
+
+
+
+```
+
+```{bash}
+R CMD BATCH bh_count_features.R
+```
+
+Adjusted R script to just do one dataset and see if it works. (PRJNA390669_12)
+```{r bh_count_features.R}
+# usage: bh_count_features.R
+
+# script to use count_features function to count reads for newly annotated ncRNA and UTRs in 
+# multiple datasets
+
+library(devtools)
+#devtools::install_github("jenjane118/baerhunter", dependencies=FALSE)
+# local edits
+devtools::load_all("/d/in16/u/sj003/baerhunter")
+library(baerhunter)
+library(Rsamtools)
+library(Rsubread)
+# create new directory for results
+
+if (!(dir.exists("./output_BH_16_03/"))) { dir.create("./output_BH_16_03/")
+}
+
+directory<-c("/d/in19/u/zchayyt/sample_accessions/PRJNA390669_12_RC/BWA_mem/")
+output_directory<-c("./output_BH_16_03/")
+count_features(bam_dir=directory,
+                    annotation_dir= "/d/in16/u/sj003/",
+                    annotation_file="combined_gffs_01_03.gff3",
+                    output_dir=output_directory,
+                    chromosome_alias_file="/d/in16/u/sj003/chromosome.txt",
+                    target_features=c("gene","putative_sRNA", "putative_UTR"),
+                    strandedness="reversely_stranded",
+                    is_paired_end=TRUE
+                    )
+```
+
+
+```{bash}
+#!/bin/bash
+
+# shell script to run R script
+source ~/.bashrc
+conda activate r_3.6
+R CMD BATCH /d/in16/u/sj003/scripts/bh_count_features.R
+~
+```
+
+
+```{bash}
+chmod +x scripts/run_bh_countfeatures.sh
+nohup scripts/run_bh_countfeatures.sh >& run_bh_countfeatures_r.out &
+```
+
+bh count_features function uses [Rsubread](https://bioconductor.org/packages/release/bioc/vignettes/Rsubread/inst/doc/SubreadUsersGuide.pdf)
+
+Rsubread creates loads of temp files in directory.
+Will run through all of bam files once for each target feature type: "gene","putative_sRNA", "putative_UTR"
+
+
+Filter for expression? use tpm normalisation in bh
+
+Combine expression data and normalise data (VCF)
+
+PCA

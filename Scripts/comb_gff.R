@@ -131,7 +131,7 @@ output_file<-"combined_gffs_01_03.gff3"
 write.table(header, output_file, sep = "\t", quote = FALSE, row.names = FALSE, col.names = FALSE)
 write.table(annotation_dataframe, output_file, sep = "\t", quote = FALSE, row.names = FALSE, col.names = FALSE, append = TRUE)
 
-#how many in combined list are confirmed?
+#how many in combined list are confirmed? Compare with known TSS sites.
 # function from verifying_BHgffs.R
 compare_known_with_predicted <- function(annotation_file, known_RNA_file, minoverlap=minoverlap) {
   # import the homemade ncRNA file using rtracklayer's import function
@@ -173,7 +173,7 @@ compare_known_with_predicted <- function(annotation_file, known_RNA_file, minove
   
   # need to make a new UTR list from TSS site list
   # read in data from "comb_cortesTSS_srna.txt" for TSS sites
-  known_TSS_file = "comb_cortesTSS_srna.txt"
+  known_TSS_file = "Data/comb_cortesTSS_srna.txt"
   tss <- read.table(file=known_TSS_file, header=T, sep = " ")
   #head(tss)
   # create 5'UTR list from TSS sites?
@@ -214,7 +214,7 @@ compare_known_with_predicted <- function(annotation_file, known_RNA_file, minove
   return(res)
 }
 
-res_combined_01_03<-compare_known_with_predicted(annotation_file = "combined_gffs_01_03.gff3", 
+res_combined_01_03<-compare_known_with_predicted(annotation_file = "BH_results/combined_gffs_01_03.gff3", 
                                                  minoverlap = 5L,
                                                  known_RNA_file = "ncRNA_verified.txt"
 )

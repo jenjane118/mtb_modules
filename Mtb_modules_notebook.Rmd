@@ -575,5 +575,424 @@ nohup bash $my_path/scripts/iterate_bedcov_cds.sh >& run_bedcov_cds_out &
 This seems to work. work out coverage plots for cds only.
 
 ![boxplot for coverage percentiles for cds only](Images/boxplot_PRJNA390669_cds.png)
+Run baerhunter 'count_features' on all datasets with new bh gff (like Rosanna)? Or do I use R Subread 'feature counts?' like YenYi. Essentially, the same thing, with a formatted output file. Do I need to filter for expression?
+
+write script to iterate through datasets
+
+```{R bh_count_features1.R}
+
+# usage: bh_count_features.R
+
+# script to use count_features function to count reads for newly annotated ncRNA and UTRs in 
+# multiple datasets
+
+library(devtools)
+#devtools::install_github("jenjane118/baerhunter", dependencies=FALSE)
+# local edits
+devtools::load_all("/d/in16/u/sj003/baerhunter")
+library(baerhunter)
+library(Rsamtools)
+library(Rsubread)
+
+## functions to get functions to re-define (from local version)
+#source("/d/in16/u/sj003/baerhunter/R/feature_file_editor.R")
+
+# create new directory for results
+
+if (!(dir.exists("./output_BH_15_03/"))) { dir.create("./output_BH_15_03/")
+}
+
+# Read in list of datasets
+directory_list <- scan("dataset_list.txt", what="", sep="\n")
+
+for (i in 1: length(directory_list)){
+  dataset_name<-sub("/d/in19/u/zchayyt/sample_accessions/", "",    directory_list[i])
+  dataset_name<-sub("/BWA_mem/", "/", dataset_name)
+  output_directory<-paste("/d/in16/u/sj003/output_BH_15_03/", dataset_name, sep="")
+  
+  print(output_directory)
+
+# run feature_file_editor to create .gff3 file with new annotations
+  count_features(bam_dir=directory_list[i],
+                    annotation_dir= "/d/in16/u/sj003/",
+                    annotation_file="combined_gffs_01_03.gff3",
+                    output_dir=output_directory,
+                    chromosome_alias_file="/d/in16/u/sj003/chromosome.txt",
+                    target_features=c("gene","putative_sRNA", "putative_UTR"),
+                    strandedness="reversely_stranded",
+                    is_paired_end=TRUE
+                    )
+}
+
+
+
+```
+
+```{bash}
+R CMD BATCH bh_count_features.R
+```
+
+Adjusted R script to just do one dataset and see if it works. (PRJNA390669_12)
+```{r bh_count_features.R}
+# usage: bh_count_features.R
+
+# script to use count_features function to count reads for newly annotated ncRNA and UTRs in 
+# multiple datasets
+
+library(devtools)
+#devtools::install_github("jenjane118/baerhunter", dependencies=FALSE)
+# local edits
+devtools::load_all("/d/in16/u/sj003/baerhunter")
+library(baerhunter)
+library(Rsamtools)
+library(Rsubread)
+# create new directory for results
+
+if (!(dir.exists("./output_BH_16_03/"))) { dir.create("./output_BH_16_03/")
+}
+
+directory<-c("/d/in19/u/zchayyt/sample_accessions/PRJNA390669_12_RC/BWA_mem/")
+output_directory<-c("./output_BH_16_03/")
+count_features(bam_dir=directory,
+                    annotation_dir= "/d/in16/u/sj003/",
+                    annotation_file="combined_gffs_01_03.gff3",
+                    output_dir=output_directory,
+                    chromosome_alias_file="/d/in16/u/sj003/chromosome.txt",
+                    target_features=c("gene","putative_sRNA", "putative_UTR"),
+                    strandedness="reversely_stranded",
+                    is_paired_end=TRUE
+                    )
+```
+
+
+```{bash}
+#!/bin/bash
+
+# shell script to run R script
+source ~/.bashrc
+conda activate r_3.6
+R CMD BATCH /d/in16/u/sj003/scripts/bh_count_features.R
+~
+```
+
+
+```{bash}
+chmod +x scripts/run_bh_countfeatures.sh
+nohup scripts/run_bh_countfeatures.sh >& run_bh_countfeatures_r.out &
+```
+
+bh count_features function uses [Rsubread](https://bioconductor.org/packages/release/bioc/vignettes/Rsubread/inst/doc/SubreadUsersGuide.pdf)
+
+Rsubread creates loads of temp files in directory.
+Will run through all of bam files once for each target feature type: "gene","putative_sRNA", "putative_UTR"
+
+transferred these to mac
+
+Run again with PRJNA327080_15 (don't open bash shell first--use tcsh shell with bash script). change output file to dataset name.
+
+copied Yen-Yi's script from github: "MSci Research Project Code.R"
+
+the "counts.csv" files are equivalent to counts df in yen yi's code. he then binds together to make large dataframe (combinded count matrix) for all features together
+
+Make counts matrix combining all of the counts files from each dataset.
+
+```{r make_counts_matrix.R}
+#read in each file--needs to be in order
+# do I need to normalise counts with bh or normalise with VST transformation? 
+
+#1) put together each feature type with all four datasets (in particular order as in conditions file)
+# Use cbind to bind together samples with same genes/rnas
+# one fewer colnames than columns
+
+#2) put together 3 types into one matrix
+
+# read in count files for genes
+
+gen_a<-read.delim("~/git/mtb_modules/count_files/counts_PRJEB65014/gene_Counts.csv", header=T)
+gen_b<-read.delim("~/git/mtb_modules/count_files/counts_PRJNA327080_15/gene_Counts.csv", header=T)
+gen_c<-read.delim("~/git/mtb_modules/count_files/counts_PRJNA278760/gene_Counts.csv", header=T)
+gen_d<-read.delim("~/git/mtb_modules/count_files/PRJNA390669_12/gene_Counts.csv", header=T)
+
+countdata_CDS<-cbind(gen_a, gen_b, gen_c, gen_d)
+nrow(countdata_CDS)
+#4018
+
+# create countdata file for putative srnas
+rna_a<-read.delim("~/git/mtb_modules/count_files/counts_PRJEB65014/putative_sRNA_Counts.csv", header=T)
+rna_b<-read.delim("~/git/mtb_modules/count_files/counts_PRJNA327080_15/putative_sRNA_Counts.csv", header=T)
+rna_c<-read.delim("~/git/mtb_modules/count_files/counts_PRJNA278760/putative_sRNA_Counts.csv", header=T)
+rna_d<-read.delim("~/git/mtb_modules/count_files/PRJNA390669_12/putative_sRNA_Counts.csv", header=T)
+countdata_rna<-cbind(rna_a, rna_b, rna_c, rna_d)
+
+#create countdata file for putative utrs
+utr_a<-read.delim("~/git/mtb_modules/count_files/counts_PRJEB65014/putative_UTR_Counts.csv", header=T)
+utr_b<-read.delim("~/git/mtb_modules/count_files/counts_PRJNA327080_15/putative_UTR_Counts.csv", header=T)
+utr_c<-read.delim("~/git/mtb_modules/count_files/counts_PRJNA278760/putative_UTR_Counts.csv", header=T)
+utr_d<-read.delim("~/git/mtb_modules/count_files/PRJNA390669_12/putative_UTR_Counts.csv", header=T)
+
+countdata_utr<-cbind(utr_a, utr_b, utr_c, utr_d)
+
+#create a combined count matrix for all features 
+countdata <- rbind(countdata_CDS,countdata_utr,countdata_rna)
+colnames(countdata) <- gsub("\\_sorted$","",colnames(countdata))
+
+# dataframe of sample names and which dataset it belongs to
+dataset<-c(rep("PRJEB65014_3/E-MTAB-6011", 3), 
+           rep("PRJNA327080/GSE83814", 15),
+           rep("PRJNA278760/GSE67035", 22),
+           rep("PRJNA390669/GSE100097", 12))
+
+sample_names<-colnames(countdata)
+sample_df<-data.frame(sample_names, dataset) 
+write.table(sample_df, "~/git/mtb_modules/dataset_samples.txt", quote=F, row.names = F, col.names = F)
+        
+#inspection of matrix 
+class(countdata)
+head(countdata)
+tail(countdata)
+nrow(countdata)
+length(countdata)
+```
+
+
+Need to make spreadsheet with samples and conditions--need to download from ncbi
+
+![summary of replicates and conditions](~/git/mtb_modules/Images/conditions.png)
+PRJEB65014_3:  ERR2103718 ERR2103722 ERR2103723
+
+Downloaded all the metadata files for each of above datasets. ONe is from Array Express and others are from NCBI SRA RunSelector.
+
+Check format.
+```{r make_conditions_file.R}
+
+# example from Array Express metadata
+meta1<-read.delim("~/git/mtb_modules/conditions_metadata/E-MTAB-6011.sdrf.txt", sep="\t", header=T, stringsAsFactors = F)
+View(meta1)
+#extract columns 30 (ENA run number), 7 (genotype--make sure wild type h37rv), 8 (growth condition)
+meta1_df<-data.frame(sample=c("ERR2103718", "ERR2103722", "ERR2103723"), condition=c("ammonium", "histidine", "lysine"))
+
+meta2<-read.csv("~/git/mtb_modules/conditions_metadata/PRJNA278760.txt",
+                 header=T, stringsAsFactors = F)
+View(meta2)
+# col 1 (run), 5 (bioproject=dataset name), 27 (growth condition)
+
+meta2_df<-data.frame(meta2$Run, meta2$Condition)
+head(meta2_df)
+colnames(meta2_df)<-c("sample", "condition")
+
+meta3<-read.csv("~/git/mtb_modules/conditions_metadata/PRJNA327080.txt",
+                 header=T, stringsAsFactors = F)
+
+View(meta3)
+
+meta3_df<-data.frame(meta3$Run, paste(meta3$growth_condition, meta3$Timepoint, sep="_"))
+
+head(meta3_df)
+colnames(meta3_df)<-c("sample", "condition")
+
+meta4<-read.csv("~/git/mtb_modules/conditions_metadata/PRJNA390669_12.txt", header=T, stringsAsFactors = F)
+View(meta4)
+
+meta4_df<-data.frame(meta4$Run, paste(meta4$carbon_source, meta4$growth_phase, sep="_"))
+colnames(meta4_df)<-c("sample", "condition")
+#combine into one csv, 'conditions.txt' for use with DESeq in bh
+
+#make dataframe baased on columns from count matrix
+sample_names<-colnames(countdata)
+conditions_df<-data.frame(sample_names)
+total_meta<-rbind(meta1_df, meta2_df, meta3_df, meta4_df)
+nrow(total_meta)
+# add conditions in same order as count matrix
+for (i in 1:nrow(conditions_df)){
+  conditions_df$condition[i]<-
+              total_meta$condition[which(
+              total_meta$sample==conditions_df$sample_names[i])]
+}
+nrow(conditions_df)  
+View(conditions_df)
+# make csv of conditions for use in DESeq
+write.csv(conditions_df, "~/git/mtb_modules/mtb_conditions.txt", row.names = F, quote=F)
+
+```
+
+3 samples from PRJEB65014 listed as 'control' conditions in YenYi's project, but actually 3 different nitrogen sources:
+
+ERR2103718 NH3, ERR2103722 His, ERR2103723 Lys
+
+I have a question about the datasets in YenYi's projects. One of the datasets with 3 samples is labelled 'control'. I have had to look up and find the metadata for each dataset to use for differential expression, and the samples in the dataset actually use three different exclusive nitrogen sources (ammonia, histidine and lysine). I'm not sure any of those three are standard--I've definitely read that there is differential expression of some genes depending on ammonia concentration, for example. But maybe the ammonia is the 'control' experiment? Does it matter? the other experiments seem to have controls. Sharon clarified not a control--part of minimal media to control nitrogen source. Need to include this in conditions.
+
+
+Also, conditions for PRJNA390669 include lipids/non-lipids in 3 diff growth conditions (stationary, exponential, hypoxic). Which is control group? Looks like he has used only dextrose exponential as control (2 samples).
+
+Conditions for PRJNA327080 include 'hypoxia/persistence' and 'reaeration/reactivation'. YenYi calls all reaeration control despite 4 time points? None of these really control as all have been through extended hypoxia and reactivation, but perhaps we could use 4 days time point as control? (maybe 3 as well?)
+
+
+Conditions for PRJNA278760 (GSE67035) includes two repl 'tylox pH7.0' and this is used as control. Verified with Sharon that tyloxopol is detergent and so this should be ok for control. 
+
+I could potentially include some control samples (3) from Gerrick experiments
+(PRJNA451488, H37Rv sRNAseq 7H9 rep1-3) but these are sequenced on 'NextSeq550' so may need different processing/poorer quality?
+
+
+Filter for expression? use tpm normalisation in bh or normalise data (VCF) after combine?
+
+
+
+By default, R will choose a reference level for factors based on alphabetical order. Then, if you never tell the DESeq2 functions which level you want to compare against (e.g. which level represents the control group), the comparisons will be based on the alphabetical order of the levels. There are two solutions: you can either *explicitly tell results which comparison to make using the contrast argument (this will be shown later), or you can explicitly set the factors levels*. In order to see the change of reference levels reflected in the results names, you need to either run DESeq or nbinomWaldTest/nbinomLRT after the re-leveling operation. Setting the factor levels can be done in two ways, either using factor …or using relevel, just specifying the reference level:
+
+
+```{r deseq2}
+
+library(DESeq2)
+        if (!requireNamespace("BiocManager", quietly = TRUE))
+          install.packages("BiocManager")
+
+#check order is same for count data and conditions data
+all(conditions_df$sample_names == colnames(countdata))
+#read in table of metadata
+conditions_df<-read.csv("~/git/mtb_modules/mtb_conditions.txt")
+
+#change some of conditions to control for this study 
+control.metadata<-conditions_df
+control_conds<-c("high_iron", "tyloxapol_pH7.0", "reaeration_day 4", "butyrate_plus_glucose", "dextrose_exponential", "dextrose_stationary")
+for (i in 1:nrow(control.metadata)){
+  if (control.metadata$condition[i] %in% control_conds){
+    control.metadata$condition[i]<-"control"
+  }
+}
+#add in dataset name
+dataset<-c(rep("E-MTAB-6011", 3), 
+           rep("GSE83814", 15),
+           rep("GSE67035", 22),
+           rep("GSE100097", 12))
+control.metadata$study<-dataset
+
+View(control.metadata)
+#turns character into a factor, ordered=F becuase levels not given in any order
+control.metadata$condition <- factor(control.metadata$condition, ordered = FALSE)
+#this step defined control samples as the base reference 
+control.metadata$condition <- relevel(control.metadata$condition, "control") 
+control.condition <- factor(control.metadata$condition)
+# makes new conditions df with factors as conditions instead of characters, have subbed in 'control' for conditions considered as a control in this study. 
+control.coldata<-data.frame(row.names=colnames(countdata), control.condition)
+
+#construct deseq dataset
+dds<-DESeqDataSetFromMatrix(countData = countdata,
+                              colData = control.coldata,
+                              design = ~control.condition)
+
+# pre-filter reads to exclude rows with very low expression--makes more efficient
+keep <- rowSums(counts(dds)) >= 10
+dds <- dds[keep,]
+
+
+#VST transformation; setting vsd parameter of blind = TRUE will result in over-estimating the dispersion and may result in overshrinking transformation, resulting in loss of gene signals 
+vsd<-vst(dds,blind=FALSE)
+
+```
+
+
+```{r plot_rawdata}
+# dataset name for index
+View(sample_df)
+dataset<-c(rep("PRJEB65014_3/E-MTAB-6011", 3), 
+           rep("PRJNA327080/GSE83814", 15),
+           rep("PRJNA278760/GSE67035", 22),
+           rep("PRJNA390669/GSE100097", 12))
+#boxplot for original data 
+dds.untransformed <- assay(dds)
+colnames(dds.untransformed)<-colnames(dds)
+par(cex.axis=0.5) 
+par(mar=c(4,2,1,1))
+colors = colors = c(rep("#440154FF",3),rep("#31688EFF",15),rep("#FDE725FF",22),rep("#35B779FF",12))
+
+plot.new()
+original.boxplot <- boxplot(dds.untransformed, 
+                            PchCex =0.01,
+                            axes=TRUE,
+                            las=2,
+                            col=colors, 
+                            ylim = c(0,4500),
+                            outline =TRUE,
+                            outcex=0.35)
+#legend("topleft", 
+#       legend=c("E-MTAB-6011", "GEO:GSE83814", "GEO:GSE67035", "GEO:GSE100097"),  
+#       col = c("#440154FF","#31688EFF","#FDE725FF","#35B779FF"), 
+#       fill= c("#440154FF","#31688EFF","#FDE725FF","#35B779FF"),
+#       cex = 0.75, 
+#       )
+```
+
+
+PCA
+
+```{r pca}
+library(ggplot2)
+
+ #PCA plotting with DESeq2 in built function 
+        PCA.prelim <- plotPCA(vsd,intgroup="control.condition")
+
+        #generating PCA table 
+        PCA.data <- data.frame(row.names=colnames(countdata),
+                               condition=factor(control.metadata$condition),
+                               dataset=factor(control.metadata$study))
+        PCA.data.plot <- prcomp(t(dds.vsd))
+        df.vst <- as.data.frame(PCA.data.plot$x)
+        df.vst$group <- PCA.data$condition
+        df.vst$dataset <-PCA.data$dataset
+        summary(PCA.data.plot)
+        
+        #establishing a custom viridis colour palette
+        toned_down_pal <- c("#FFBF00","#31688EFF","#35B779FF","#CA0020")
+
+        #PCA plot for VST transformed data 
+        custom <- ggplot(df.vst,aes(x=PC1,y=PC2,color=dataset,shape=group)) + scale_shape_manual(values = 0:16) + geom_point(size=3) + xlab("PC1 (42%)") + ylab("PC2 (32%)")
+        custom <- custom + scale_color_manual(values = toned_down_pal) + theme_bw()
+        custom
+        
+        
+```
+Shows batch effects in 2 datasets.
+
+![Dendrogram VST transformed data, no batch correction](~/git/mtb_modules/Images/dendrogram_vst.png)
+
+
+```{r batch_effect_correction}
+#batch effect correction using limma; requirement to define batch effect 
+        batch.table <- data.frame(study=control.metadata$study,condition=NA) 
+        batch.table$condition <- control.metadata$condition 
+        limma.expr<-removeBatchEffect(x=dds.vsd,
+                                      batch=batch.table$study,
+                                      batch2=NULL,
+                                      covariates=NULL,
+                                      design=model.matrix(~ batch.table$condition)) 
+
+        #generating PCA table post-limma
+        datExpAdj <- t(limma.expr)
+        pca_limma <- prcomp(datExpAdj)
+        df.vst.b <- as.data.frame(pca_limma$x)
+        df.vst.b$group <- control.metadata$condition
+        df.vst.b$dataset <- control.metadata$study
+        summary(pca_limma) 
+
+        #PCA plot for VST transformed data post-limma; PC1 PC2
+        after.limma <- ggplot(df.vst.b,aes(x=PC1,y=PC2,color=dataset, shape=group)) + scale_shape_manual(values = 0:16) + geom_point(size=3) + xlab("PC1 (38%)") + ylab("PC2 (27%)")
+        after.limma <- after.limma + scale_color_manual(values = toned_down_pal) + theme_bw()
+        after.limma
+        #PC2 PC3
+        after.limma2 <- ggplot(df.vst.b,aes(x=PC2,y=PC3,color=dataset, shape=group)) + scale_shape_manual(values = 0:16) + geom_point(size=3) + xlab("PC2 (27%)") + ylab("PC3 (22%)")
+        after.limma2 <- after.limma2 + scale_color_manual(values = toned_down_pal) + theme_bw()
+        after.limma2
+        #PC3 PC4
+        after.limma3 <- ggplot(df.vst.b,aes(x=PC3,y=PC4,color=dataset, shape=group)) + scale_shape_manual(values = 0:16) + geom_point(size=3) + xlab("PC3 (22%)") + ylab("PC4 (19%)")
+        after.limma3 <- after.limma3 + scale_color_manual(values = toned_down_pal) + theme_bw()
+        after.limma3
+
+```
+![Dendrogram of VST transformed, post limma](~/git/mtb_modules/Images/dendro_vst_limma.png)
+
+
+Still see batch effects for smallest dataset.
+
+
 
 

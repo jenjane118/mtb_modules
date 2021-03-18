@@ -325,6 +325,54 @@ also requires fasta files (evidently). added into above. also got error regardin
 
 very fast, but only doing one file at a time. maybe see if I can do whole dataset on server?
 
+Look at 'best candidates' from run:
+
+
+```{r}
+
+#anno_data<-read.csv("~/Mycobacteria_project/annogesic/ANNOgesic/output/sRNAs/tables/best_candidates/AL123456.3_sRNA.csv", sep="\t", stringsAsFactors = F, header=T)
+
+#anno_data[1:5,]
+nrow(anno_data)
+#1244
+# or use gff and use rtracklayer?
+library(rtracklayer)
+anno_data<-readGFF("~/Mycobacteria_project/annogesic/ANNOgesic/output/sRNAs/gffs/best_candidates/AL123456.3_sRNA.gff")
+colnames(anno_data)
+
+anno_data$s
+
+# make genomic ranges?
+
+library(GenomicRanges)
+anno.all <- GRanges(
+                seqnames ="AL123456.3", 
+                ranges   =IRanges(start=anno_data$start, end=anno_data$end), 
+                strand   =Rle(strand(anno_data$strand)),
+                sRNA_ID  =anno_data$Name
+                )
+
+mean(width(anno.all))
+#[1] 286.3111
+min(width(anno.all))
+#67
+max(width(anno.all))
+#501
+
+## compare with known and with TSS's
+
+
+
+```
+
+
+
+
+
+
+
+
+
 23 Feb 2021
 
 ## APERO TESTING

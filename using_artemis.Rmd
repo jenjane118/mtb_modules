@@ -2,7 +2,6 @@
 title: "Using artemis"
 output: html_notebook
 ---
-setwd("~/git/mtb_modules")
 
 ```{bash}
 # to run artemis I found file in anaconda and clicked it, but this came up on terminal
@@ -16,7 +15,7 @@ art
 
 Load sequence file (project manager, select file, open)
 
-File/Read an entry/select file format: 'feature file'from pull-down in window and select file for .gff3
+File/Read an entry/select file format: 'feature file' from pull-down in window and select file for .gff3
 
 ![selecting feature file](Images/Using_artemis.png)
 
