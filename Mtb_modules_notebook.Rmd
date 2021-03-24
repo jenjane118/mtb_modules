@@ -13,6 +13,19 @@ output: html_notebook
 3. Baerhunter paper [Ozuna, A., Liberto, D., Joyce, R. M., Arnvig, K. B., & Nobeli, I. (2019). baerhunter: an R package for the discovery and analysis of expressed non-coding regions in bacterial RNA-seq data. Bioinformatics.] (https://doi.org/10.1093/bioinformatics/btz643)
 [supplementary data](https://academic.oup.com/bioinformatics/article-abstract/36/3/966/5550627?redirectedFrom=fulltext)
 
+4. Paper on WCGNA @article{Langfelder2008,
+abstract = {Background: Correlation networks are increasingly being used in bioinformatics applications. For example, weighted gene co-expression network analysis is a systems biology method for describing the correlation patterns among genes across microarray samples. Weighted correlation network analysis (WGCNA) can be used for finding clusters (modules) of highly correlated genes, for summarizing such clusters using the module eigengene or an intramodular hub gene, for relating modules to one another and to external sample traits (using eigengene network methodology), and for calculating module membership measures. Correlation networks facilitate network based gene screening methods that can be used to identify candidate biomarkers or therapeutic targets. These methods have been successfully applied in various biological contexts, e.g. cancer, mouse genetics, yeast genetics, and analysis of brain imaging data. While parts of the correlation network methodology have been described in separate publications, there is a need to provide a user-friendly, comprehensive, and consistent software implementation and an accompanying tutorial. Results: The WGCNA R software package is a comprehensive collection of R functions for performing various aspects of weighted correlation network analysis. The package includes functions for network construction, module detection, gene selection, calculations of topological properties, data simulation, visualization, and interfacing with external software. Along with the R package we also present R software tutorials. While the methods development was motivated by gene expression data, the underlying data mining approach can be applied to a variety of different settings. Conclusion: The WGCNA package provides R functions for weighted correlation network analysis, e.g. co-expression network analysis of gene expression data. The R package along with its source code and additional material are freely available at http://www.genetics.ucla.edu/ labs/horvath/CoexpressionNetwork/Rpackages/WGCNA. {\textcopyright} 2008 Langfelder and Horvath; licensee BioMed Central Ltd.},
+author = {Langfelder, Peter and Horvath, Steve},
+doi = {10.1186/1471-2105-9-559},
+file = {:Users/jenniferstiens/Documents/Mendeley Desktop/1471-2105-9-559.pdf:pdf},
+issn = {14712105},
+journal = {BMC Bioinformatics},
+mendeley-groups = {WCGNA},
+pmid = {19114008},
+title = {{WGCNA: An R package for weighted correlation network analysis}},
+volume = {9},
+year = {2008}
+}
 
 
 ## work on gathering/annotating list of ncRNAs in mtb
@@ -736,6 +749,9 @@ countdata_utr<-cbind(utr_a, utr_b, utr_c, utr_d)
 countdata <- rbind(countdata_CDS,countdata_utr,countdata_rna)
 colnames(countdata) <- gsub("\\_sorted$","",colnames(countdata))
 
+#write table of count matrix
+write.csv(countdata, "count_matrix_complete.csv", quote=F, row.names = F)
+
 # dataframe of sample names and which dataset it belongs to
 dataset<-c(rep("PRJEB65014_3/E-MTAB-6011", 3), 
            rep("PRJNA327080/GSE83814", 15),
@@ -811,7 +827,7 @@ for (i in 1:nrow(conditions_df)){
 nrow(conditions_df)  
 View(conditions_df)
 # make csv of conditions for use in DESeq
-write.csv(conditions_df, "~/git/mtb_modules/mtb_conditions.txt", row.names = F, quote=F)
+write.csv(conditions_df, "~/git/mtb_modules/mtb_conditions.txt", header=F, row.names = F, quote=F)
 
 ```
 
@@ -853,7 +869,7 @@ conditions_df<-read.csv("~/git/mtb_modules/mtb_conditions.txt")
 
 #change some of conditions to control for this study 
 control.metadata<-conditions_df
-control_conds<-c("high_iron", "tyloxapol_pH7.0", "reaeration_day 4", "butyrate_plus_glucose", "dextrose_exponential", "dextrose_stationary")
+control_conds<-c("tyloxapol_pH7.0", "reaeration_day 4", "butyrate_plus_glucose", "dextrose_exponential")
 for (i in 1:nrow(control.metadata)){
   if (control.metadata$condition[i] %in% control_conds){
     control.metadata$condition[i]<-"control"
@@ -864,9 +880,11 @@ dataset<-c(rep("E-MTAB-6011", 3),
            rep("GSE83814", 15),
            rep("GSE67035", 22),
            rep("GSE100097", 12))
+# this has 'control' conditions set
 control.metadata$study<-dataset
+# no control conditions
+conditions_df$study<-dataset
 
-View(control.metadata)
 #turns character into a factor, ordered=F becuase levels not given in any order
 control.metadata$condition <- factor(control.metadata$condition, ordered = FALSE)
 #this step defined control samples as the base reference 
@@ -874,21 +892,43 @@ control.metadata$condition <- relevel(control.metadata$condition, "control")
 control.condition <- factor(control.metadata$condition)
 # makes new conditions df with factors as conditions instead of characters, have subbed in 'control' for conditions considered as a control in this study. 
 control.coldata<-data.frame(row.names=colnames(countdata), control.condition)
+conditions.coldata<-data.frame(row.names = colnames(countdata), conditions_df$condition)
+View(conditions.coldata)
+
+
 
 #construct deseq dataset
 dds<-DESeqDataSetFromMatrix(countData = countdata,
-                              colData = control.coldata,
-                              design = ~control.condition)
+                              colData = conditions.coldata,
+                              #colData = control.coldata,
+                              #design = ~control.condition)
+                              design = ~conditions_df.condition)
+
+# changed to exclude 'control' from design
+
 
 # pre-filter reads to exclude rows with very low expression--makes more efficient
 keep <- rowSums(counts(dds)) >= 10
-dds <- dds[keep,]
+dds_filtered <- dds[keep,]
 
 
 #VST transformation; setting vsd parameter of blind = TRUE will result in over-estimating the dispersion and may result in overshrinking transformation, resulting in loss of gene signals 
-vsd<-vst(dds,blind=FALSE)
+
+# filtered for low expression
+#vsd<-vst(dds,blind=FALSE)
+# use blind=True to ignore 'control' designation
+vst_dds<-vst(dds_filtered, blind=TRUE)
+
+
+# non filtered
+#vst_dds<- vst(dds_unfiltered, blind=FALSE)
 
 ```
+
+VST (variance stabilising transformation) transformation to normalise data with respect to library size, coverage, etc.
+(http://127.0.0.1:27710/library/DESeq2/doc/DESeq2.html#countmat)
+
+"The point of these two transformations, the VST and the rlog, is to remove the dependence of the variance on the mean, particularly the high variance of the logarithm of count data when the mean is low. Both VST and rlog use the experiment-wide trend of variance over mean, in order to transform the data to remove the experiment-wide trend. Note that we do not require or desire that all the genes have exactly the same variance after transformation. Indeed, in a figure below, you will see that after the transformations the genes with the same mean do not have exactly the same standard deviations, but that the experiment-wide trend has flattened. It is those genes with row variance above the trend which will allow us to cluster samples into interesting groups."
 
 
 ```{r plot_rawdata}
@@ -920,22 +960,46 @@ original.boxplot <- boxplot(dds.untransformed,
 #       fill= c("#440154FF","#31688EFF","#FDE725FF","#35B779FF"),
 #       cex = 0.75, 
 #       )
+
+#boxplot for vst data (filtered)
+dds.vst_sum<- assay(vst_dds)
+
+colnames(dds.vst_sum)<-colnames(dds)
+par(cex.axis=0.5)
+par(mar=c(4,2,1,1))
+colors = c(rep("#440154FF",3),rep("#31688EFF",15),rep("#FDE725FF",22),rep("#35B779FF",12))
+
+vst.dds_boxplot <- boxplot(dds.vst_sum,
+                           PchCex =0.01,
+                           axes=TRUE,
+                           las=2,
+                           col=colors,
+                           outcex=0.35)
+legend(2,9, c("E-MTAB-6011", "GEO:GSE83814", "GEO:GSE67035", "GEO:GSE100097"), 
+       col=c("#440154FF","#31688EFF","#FDE725FF","#35B779FF"),
+       fill=c("#440154FF","#31688EFF","#FDE725FF","#35B779FF"),
+       cex=0.75)
 ```
 
 
 PCA
 
+"Related to the distance matrix is the PCA plot, which shows the samples in the 2D plane spanned by their first two principal components. This type of plot is useful for visualizing the overall effect of experimental covariates and batch effects."
+
 ```{r pca}
 library(ggplot2)
 
- #PCA plotting with DESeq2 in built function 
-        PCA.prelim <- plotPCA(vsd,intgroup="control.condition")
+# don't use 'control' conditions, back to sample conditions (conditions_df)
+
+ #PCA plotting with DESeq2 in built function (filtered)
+        PCA.prelim <- plotPCA(vst_dds,intgroup="conditions_df.condition")
 
         #generating PCA table 
         PCA.data <- data.frame(row.names=colnames(countdata),
-                               condition=factor(control.metadata$condition),
-                               dataset=factor(control.metadata$study))
-        PCA.data.plot <- prcomp(t(dds.vsd))
+                               condition=factor(conditions_df$condition),
+                               dataset=factor(conditions_df$study))
+      
+        PCA.data.plot <- prcomp(t(dds.vst_sum))
         df.vst <- as.data.frame(PCA.data.plot$x)
         df.vst$group <- PCA.data$condition
         df.vst$dataset <-PCA.data$dataset
@@ -945,7 +1009,7 @@ library(ggplot2)
         toned_down_pal <- c("#FFBF00","#31688EFF","#35B779FF","#CA0020")
 
         #PCA plot for VST transformed data 
-        custom <- ggplot(df.vst,aes(x=PC1,y=PC2,color=dataset,shape=group)) + scale_shape_manual(values = 0:16) + geom_point(size=3) + xlab("PC1 (42%)") + ylab("PC2 (32%)")
+        custom <- ggplot(df.vst,aes(x=PC1,y=PC2,color=dataset,shape=group)) + scale_shape_manual(values = 0:21) + geom_point(size=3) + xlab("PC1 (31.8%)") + ylab("PC2 (18.5%)")
         custom <- custom + scale_color_manual(values = toned_down_pal) + theme_bw()
         custom
         
@@ -953,19 +1017,52 @@ library(ggplot2)
 ```
 Shows batch effects in 2 datasets.
 
-![Dendrogram VST transformed data, no batch correction](~/git/mtb_modules/Images/dendrogram_vst.png)
+```{r}
+#dendrogram for VST transformed data (filtered)
+sizeGrWindow(12,9)
+par(cex=0.6)
+par(mar=c(5,6,2,0))
+
+group <-as.factor(conditions_df$study) 
+n_group <- length(unique(group)) 
+cols <- toned_down_pal    #(n_group)
+col_group <- cols[group] 
+hc <- hclust(dist(t(dds.vst_sum)),method="average")
+dend <- as.dendrogram(hc) 
+col_group <- col_group[order.dendrogram(dend)] 
+dend <- dend %>% 
+set("labels_colors", col_group) %>% #change label colors to group
+plot(main = "Dendrogram VST transformed")
+legend("topright", 
+       legend = unique(group), 
+       fill = cols, 
+       cex = 0.75, 
+       pt.cex = 1)
+
+```
+
+Looks same as when used 'control' conditions
+
+
+
+
+![Dendrogram VST transformed data, no batch correction (with controls indicated)](~/git/mtb_modules/Images/dendrogram_vst.png)
 
 
 ```{r batch_effect_correction}
 #batch effect correction using limma; requirement to define batch effect 
-        batch.table <- data.frame(study=control.metadata$study,condition=NA) 
-        batch.table$condition <- control.metadata$condition 
-        limma.expr<-removeBatchEffect(x=dds.vsd,
-                                      batch=batch.table$study,
-                                      batch2=NULL,
-                                      covariates=NULL,
-                                      design=model.matrix(~ batch.table$condition)) 
+        batch.table <- data.frame(study=conditions_df$study,condition=NA) 
+        batch.table$condition <- conditions_df$condition 
+        limma.expr<-removeBatchEffect(x=dds.vst_sum,
+                                    batch=batch.table$study,
+                                    batch2=NULL,
+                                    covariates=NULL,
+                                    design=model.matrix(~ batch.table$condition)) 
 
+#Coefficients not estimable: batch1 batch2 batch3 ?
+#Partial NA coefficients for 6483 probe(s) ?
+        
+        
         #generating PCA table post-limma
         datExpAdj <- t(limma.expr)
         pca_limma <- prcomp(datExpAdj)
@@ -975,24 +1072,172 @@ Shows batch effects in 2 datasets.
         summary(pca_limma) 
 
         #PCA plot for VST transformed data post-limma; PC1 PC2
-        after.limma <- ggplot(df.vst.b,aes(x=PC1,y=PC2,color=dataset, shape=group)) + scale_shape_manual(values = 0:16) + geom_point(size=3) + xlab("PC1 (38%)") + ylab("PC2 (27%)")
+        after.limma <- ggplot(df.vst.b,aes(x=PC1,y=PC2,color=dataset, shape=group)) + scale_shape_manual(values = 0:20) + geom_point(size=3) + xlab("PC1 (31.8%)") + ylab("PC2 (18.5%)")
         after.limma <- after.limma + scale_color_manual(values = toned_down_pal) + theme_bw()
         after.limma
         #PC2 PC3
-        after.limma2 <- ggplot(df.vst.b,aes(x=PC2,y=PC3,color=dataset, shape=group)) + scale_shape_manual(values = 0:16) + geom_point(size=3) + xlab("PC2 (27%)") + ylab("PC3 (22%)")
+        after.limma2 <- ggplot(df.vst.b,aes(x=PC2,y=PC3,color=dataset, shape=group)) + scale_shape_manual(values = 0:20) + geom_point(size=3) + xlab("PC2 (18.5%)") + ylab("PC3 (11.6%)")
         after.limma2 <- after.limma2 + scale_color_manual(values = toned_down_pal) + theme_bw()
         after.limma2
         #PC3 PC4
-        after.limma3 <- ggplot(df.vst.b,aes(x=PC3,y=PC4,color=dataset, shape=group)) + scale_shape_manual(values = 0:16) + geom_point(size=3) + xlab("PC3 (22%)") + ylab("PC4 (19%)")
+        after.limma3 <- ggplot(df.vst.b,aes(x=PC3,y=PC4,color=dataset, shape=group)) + scale_shape_manual(values = 0:20) + geom_point(size=3) + xlab("PC3 (11.6%)") + ylab("PC4 (8%)")
         after.limma3 <- after.limma3 + scale_color_manual(values = toned_down_pal) + theme_bw()
         after.limma3
+
+        #dendrogram for VST transformed data post-limma
+sizeGrWindow(12,9)
+par(cex=0.6)
+par(mar=c(5,6,2,0))
+group <-as.factor(conditions_df$study) 
+n_group <- length(unique(group)) 
+cols <- toned_down_pal 
+col_group <- cols[group] 
+hc.limma <- hclust(dist(datExpAdj),method="average")
+dend.limma <- as.dendrogram(hc.limma)
+col_group <- col_group[order.dendrogram(dend.limma)] 
+
+dend.limma <- dend.limma %>% 
+        set("labels_colors", col_group) %>% #change label colors to GROUP
+        plot(main = "Dendrogram VST transformed post-Limma")
+legend("topright", 
+       legend = levels(group), 
+       fill = cols, 
+       cex = 0.75,
+       pt.cex = 1)
 
 ```
 ![Dendrogram of VST transformed, post limma](~/git/mtb_modules/Images/dendro_vst_limma.png)
 
 
 Still see batch effects for smallest dataset.
+Maybe should try without pre-filtering for low expression? May contribute to batch effects if one dataset has more low expression signals than others? Try again without pre-filtering.
+
+
+```{r pca_unfiltered}
+library(ggplot2)
+#PCA plotting unfiltered for low expression
+PCA.prelim2<- plotPCA(vst_dds, intgroup="control.condition")
+PCA.data.plot2<-prcomp(t(dds_vst_unfiltered))
+df.vst2<-as.data.frame(PCA.data.plot2$x)
+df.vst2$group<- PCA.data$condition
+df.vst2$dataset <- PCA.data$dataset
+summary(PCA.data.plot2)
+
+#batch effect correction using limma; requirement to define batch effect 
+        batch.table <- data.frame(study=control.metadata$study,condition=NA) 
+        batch.table$condition <- control.metadata$condition 
+        limma.expr2<-removeBatchEffect(x=dds_vst_unfiltered,
+                                    batch=batch.table$study,
+                                    batch2=NULL,
+                                    covariates=NULL,
+                                    design=model.matrix(~ batch.table$condition)) 
+
+        #generating PCA table post-limma
+        datExpAdj2 <- t(limma.expr2)
+        pca_limma2 <- prcomp(datExpAdj2)
+        df.vst.un <- as.data.frame(pca_limma2$x)
+        df.vst.un$group <- control.metadata$condition
+        df.vst.un$dataset <- control.metadata$study
+        summary(pca_limma2) 
+#####
+        #PCA plot for VST transformed data post-limma; PC1 PC2
+        after.limma2 <- ggplot(df.vst.un,aes(x=PC1,y=PC2,color=dataset, shape=group)) + scale_shape_manual(values = 0:16) + geom_point(size=3) + xlab("PC1 (38%)") + ylab("PC2 (27%)")
+        after.limma2 <- after.limma2 + scale_color_manual(values = toned_down_pal) + theme_bw()
+        after.limma2
+        #PC2 PC3
+        after.limma21 <- ggplot(df.vst.b,aes(x=PC2,y=PC3,color=dataset, shape=group)) + scale_shape_manual(values = 0:16) + geom_point(size=3) + xlab("PC2 (27%)") + ylab("PC3 (22%)")
+        after.limma21 <- after.limma21 + scale_color_manual(values = toned_down_pal) + theme_bw()
+        after.limma21
+        #PC3 PC4
+        after.limma31 <- ggplot(df.vst.b,aes(x=PC3,y=PC4,color=dataset, shape=group)) + scale_shape_manual(values = 0:16) + geom_point(size=3) + xlab("PC3 (22%)") + ylab("PC4 (19%)")
+        after.limma31 <- after.limma31 + scale_color_manual(values = toned_down_pal) + theme_bw()
+        after.limma31
+```
+
+There is no apparent difference in pca plot or dendrograph either--filtering doesn't seem to affect batch effects.
 
 
 
+```{r}
+#WGCNA 
+        options(stringsAsFactors = FALSE)
+        analysis <- as.data.frame(t(limma.expr))
+        
+          #double check data 
+        dim(analysis)
+        head(analysis)[,1:5]
+        #defining trait data 
+        traitData <- read.csv("mtb_conditions.txt")
+        dim(traitData)
+        names(traitData)
+        #reformatting data to match
+        sample.names <- rownames(analysis)
+        traitRows <- match(colnames(dds.vsd),traitData$Sample)
+        datTraits <- traitData[traitRows,-1]
+        #relabel row names with sample names 
+        rownames(datTraits) <- traitData[traitRows,1]
+        datTraits[is.na(datTraits)] <- 0 
+        collectGarbage()
+
+        #choose a set of soft-thresholding powers
+        powers = c(c(1:10), seq(from = 12, to=20, by=2))
+        #call the network topology analysis function
+        sft = pickSoftThreshold(analysis, 
+                                powerVector = powers, 
+                                verbose = 5)
+        #plotting the output 
+        sizeGrWindow(9, 5)
+        par(mfrow = c(1,1))
+        cex1 = 0.9
+        # Scale-free topology fit index as a function of the soft-thresholding power
+        plot(sft$fitIndices[,1], 
+             -sign(sft$fitIndices[,3])*sft$fitIndices[,2],
+             xlab="Soft Threshold (power)",
+             ylab="Scale Free Topology Model Fit,signed R^2",
+             type="n",
+             main = paste("Scale independence"))
+        text(sft$fitIndices[,1], 
+             -sign(sft$fitIndices[,3])*sft$fitIndices[,2],
+             labels=powers,
+             cex=cex1,
+             col="red")
+        #R^2 cut-off line
+        abline(h=0.85,col="red")
+        #mean connectivity as a function of the soft-thresholding power
+        plot(sft$fitIndices[,1], 
+             sft$fitIndices[,5],
+             xlab="Soft Threshold (power)",
+             ylab="Mean Connectivity", 
+             type="n",
+             main = paste("Mean connectivity"))
+        text(sft$fitIndices[,1], 
+             sft$fitIndices[,5], 
+             labels=powers, 
+             cex=cex1,
+             col="red")
+
+
+```
+
+Just re-do it all with your own script and own variable names--this is too confusing. 
+
+[Notes on VST](http://bioconductor.org/packages/release/bioc/manuals/DESeq2/man/DESeq2.pdf) 
+
+better for larger datasets >30, this is larger, but not too large.
+Not as good with datasets with large variations in sequencing depth.
+
+This wrapper for the VST is not blind to the experimental design: the sample covariate information is used to estimate the global trend of genes’ dispersion values over the genes’ mean normalized count. It can be made strictly blind to experimental design by first assigning a design of ~1 before running this function, or by avoiding subsetting and using varianceStabilizingTransformation.
+
+blind=TRUE should be used for comparing samples in a manner unbiased by prior information on samples, for example to perform sample QA (quality assurance). blind=FALSE should be used for transforming data for downstream analysis, where the full use of the design information should be made. blind=FALSE will skip re-estimation of the dispersion trend, if this has already been calculated. If many of genes have large differences in counts due to the experimental design, it is important to set blind=FALSE for downstream analysis.
+
+For each sample (i.e., column of counts(dds)), the full variance function is calculated from the raw variance (by scaling according to the size factor and adding the shot noise). We recommend a blind estimation of the variance function, i.e., one ignoring conditions. This is performed by default, and can be modified using the ’blind’ argument.
+
+Try first with blind=TRUE.
+
+The rlog is less sensitive to size factors, which can be an issue when size factors vary widely. Should check these for my samples. Try with both rlog and vst.
+
+
+The more the size factors differ, the more residual dependence of the variance on the mean will be found in the transformed data. rlog is a transformation which can perform better in these cases. As shown in the vignette, the function meanSdPlot from the package vsn can be used to see whether this is a problem.
+
+**This is continued in pca_wcgna.Rmd**
 

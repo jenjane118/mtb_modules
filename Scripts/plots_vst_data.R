@@ -55,9 +55,10 @@ legend("topleft",
        )
 
 
+
 #boxplot for vst data 
 dds.vsd <- assay(vsd)
-colnames(dds.vsd)<-colnames(dds)
+colnames(dds.vsd)<-colnames(dds_filtered)
 par(cex.axis=0.5)
 par(mar=c(4,2,1,1))
 colors = c(rep("#440154FF",3),rep("#31688EFF",15),rep("#FDE725FF",22),rep("#35B779FF",12))
@@ -73,9 +74,33 @@ legend("topleft",
        fill=c("#440154FF","#31688EFF","#FDE725FF","#35B779FF"),
        cex=0.75)
 
-#PCA plotting with DESeq2 in built function 
-PCA.prelim <- plotPCA(vsd,intgroup="control.condition")
 
+# unfiltered (vst_dds)
+
+#boxplot for vst data unfiltered
+dds_vst_unfiltered <- assay(vst_dds)
+colnames(dds_vst_unfiltered)<-colnames(dds)
+par(cex.axis=0.5)
+par(mar=c(4,2,1,1))
+colors = c(rep("#440154FF",3),rep("#31688EFF",15),rep("#FDE725FF",22),rep("#35B779FF",12))
+vst.unfiltered.boxplot <- boxplot(dds_vst_unfiltered,
+                           PchCex =0.01,
+                           axes=TRUE,
+                           las=2,
+                           col=colors,
+                           outcex=0.35)
+legend("topleft", 
+       legend=c("E-MTAB-6011", "GEO:GSE83814", "GEO:GSE67035", "GEO:GSE100097"), 
+       col=c("#440154FF","#31688EFF","#FDE725FF","#35B779FF"),
+       fill=c("#440154FF","#31688EFF","#FDE725FF","#35B779FF"),
+       cex=0.75)
+
+
+# literally no difference apparent in boxplots with filtering
+
+
+#PCA plotting with DESeq2 in built function (filtered)
+PCA.prelim <- plotPCA(vsd,intgroup="control.condition")
 #generating PCA table 
 PCA.data <- data.frame(row.names=colnames(countdata),
                        condition=factor(control.metadata$condition),
@@ -86,25 +111,35 @@ df.vst$group <- PCA.data$condition
 df.vst$dataset <-PCA.data$dataset
 summary(PCA.data.plot)
 
+
+#PCA plotting unfiltered for low expression
+PCA.prelim2<- plotPCA(vst_dds, intgroup="control.condition")
+PCA.data.plot2<-prcomp(t(dds_vst_unfiltered))
+df.vst2<-as.data.frame(PCA.data.plot2$x)
+df.vst2$group<- PCA.data$condition
+df.vst2$dataset <- PCA.data$dataset
+summary(PCA.data.plot2)
+
+
 #establishing a custom viridis colour palette
 toned_down_pal <- c("#FFBF00","#31688EFF","#35B779FF","#CA0020")
 
 #PCA plot for VST transformed data 
-custom <- ggplot(df.vst,aes(x=PC1,y=PC2,color=dataset,shape=group)) + scale_shape_manual(values = 0:16) + geom_point(size=3) + xlab("PC1 (42%)") + ylab("PC2 (32%)")
+custom <- ggplot(df.vst,aes(x=PC1,y=PC2,color=dataset,shape=group)) + scale_shape_manual(values = 0:21) + geom_point(size=3) + xlab("PC1 (42%)") + ylab("PC2 (32%)")
 custom <- custom + scale_color_manual(values = toned_down_pal) + theme_bw()
 custom
 
 #dendrogram for VST transformed data
-
-
 sizeGrWindow(12,9)
 par(cex=0.6)
 par(mar=c(5,6,2,0))
 
-
 group <-as.factor(control.metadata$study) 
+group
 n_group <- length(unique(group)) 
-cols <- toned_down_pal(n_group)
+n_group
+toned_down_pal
+cols <- toned_down_pal#(n_group)
 col_group <- cols[group] 
 hc <- hclust(dist(t(dds.vsd)),method="average")
 dend <- as.dendrogram(hc) 
@@ -123,7 +158,7 @@ legend("topright",
 sizeGrWindow(12,9)
 par(cex=0.6)
 par(mar=c(5,6,2,0))
-group <-as.factor(control.metadata$study) 
+group <-as.factor(conditions_df$study) 
 n_group <- length(unique(group)) 
 cols <- toned_down_pal 
 col_group <- cols[group] 
@@ -139,3 +174,52 @@ legend("topright",
        fill = cols, 
        cex = 0.75,
        pt.cex = 1)
+
+
+#dendrogram for VST transformed data post-limma unfiltered
+sizeGrWindow(12,9)
+par(cex=0.6)
+par(mar=c(5,6,2,0))
+group <-as.factor(control.metadata$study) 
+n_group <- length(unique(group)) 
+cols <- toned_down_pal 
+col_group <- cols[group] 
+hc.limma_u <- hclust(dist(datExpAdj2),method="average")
+dend.limma_u <- as.dendrogram(hc.limma_u)
+col_group <- col_group[order.dendrogram(dend.limma_u)] 
+
+dend.limma_u <- dend.limma_u %>% 
+        set("labels_colors", col_group) %>% #change label colors to GROUP
+        plot(main = "Dendrogram VST transformed post-Limma unfiltered")
+legend("topright", 
+       legend = levels(group), 
+       fill = cols, 
+       cex = 0.75,
+       pt.cex = 1)
+
+## identical dendograph filtering makes no difference on batch effects
+
+
+
+#WGCNA 
+options(stringsAsFactors = FALSE)
+analysis <- as.data.frame(t(limma.expr))
+
+#double check data 
+dim(analysis)
+head(analysis)[,1:5]
+
+
+# what is involved with 'trait data'? 
+#defining trait data 
+traitData <- read.csv("trait_data.csv")
+dim(traitData)
+names(traitData)
+#reformatting data to match
+sample.names <- rownames(analysis)
+traitRows <- match(colnames(dds.vsd),traitData$Sample)
+datTraits <- traitData[traitRows,-1]
+#relabel row names with sample names 
+rownames(datTraits) <- traitData[traitRows,1]
+datTraits[is.na(datTraits)] <- 0 
+collectGarbage()
