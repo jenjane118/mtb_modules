@@ -3,7 +3,6 @@ title: "Mycobacterium gene module clustering"
 output: html_notebook
 ---
 
-******
 # Reading and Resources
 
 1. Yen Yi's MRes report [Large Scale Computational Analysis of Coding and Non-coding Element Expression in Mycobacterium tuberculosis](Mycobacteria_project/HBXV7_AMS_MSCI_DISSERTATION_SUBMISSION.pdf)
@@ -279,14 +278,17 @@ OK, that worked! have to use step to create new directory and only include name 
 
 Irilenia is concerned that BH results from PRJNA390669 is very low. check data for strandedness and quality. Strandedness is defo reversely stranded:
 
-![paired end reads showing both strands](Images/prjna_39066912.27.52.png)
-![R1 hidden so you can see whether reads correspond to reverse-strand CDS](Images/prjna_390669_12.29.16.png)
+![paired end reads showing both strands](~/git/mtb_modules/Images/prjna_39066912.27.52.png)
+
+![R1 hidden so you can see whether reads correspond to reverse-strand CDS](~/git/mtb_modules/Images/prjna_390669_12.29.16.png)
+
 
 It appears that the sRNAs are being called UTRs because the read depth is very high and signal never goes back to zero (noisy). We need to adjust the low/high coverage parameters to eliminate this problem.
 
 From Irilenia: "use bedtools(?) to calculate coverage per position. Then you have the distribution of the coverages and can find the various percentiles of this"
 
-![from suppl info from baerhunter paper](Images/suppl_baerhunter.png)
+![from suppl info from baerhunter paper](~/git/mtb_modules/Images/suppl_baerhunter.png)
+
 
 ```{bash}
 module load bedtools
@@ -384,7 +386,7 @@ lapply(cov_df[,3:14], quantile, probs=c(0.05, 0.1, 0.15, 0.20, 0.25, 0.50, 0.75,
 lapply(cov_df[,3:14], quantile, probs=c(0.05, 0.06, 0.07, 0.08, 0.09, 0.1, 0.11, 0.12, 0.13, 0.14, 0.15, 0.16, 0.17, 0.18, 0.19, 0.20))
 ```
 
-![coverage percentiles](Images/PRJNA390669_boxplot.png)
+![coverage percentiles](~/git/mtb_modules/Images/PRJNA390669_boxplot.png)
 
 Might want to compare boxplots for individual samples and see if there is any correlation with different conditions?
 
@@ -425,7 +427,7 @@ bedtools genomecov -ibam /d/projects/u/zchayyt/MTB_sample_accession_files/sample
 
 run for entire set (changed iterate_bedcov.sh script) and look at boxplots
 
-![positive strand coverage for PRJNA390669_12](Images/PRJNA390669_pos_cov.png)
+![positive strand coverage for PRJNA390669_12](~/git/mtb_modules/Images/PRJNA390669_pos_cov.png)
 
 ![negative strand coverage for PRJNA390669_12](Images/prjna390669_neg_cov.png)
 
@@ -443,7 +445,7 @@ Rv0002	   2806    2787    5593
 
 This shows that coverage should have been about equal for this feature.
 
-![artemis view of bam read for above sample](Images/ARtemis_screenshot_srr5689224.png)
+![artemis view of bam read for above sample](~/git/mtb_modules/Images/ARtemis_screenshot_srr5689224.png)
 
 
 ![bedtools results](Images/bedtools_cov_SRR5689224.png)
@@ -587,7 +589,7 @@ nohup bash $my_path/scripts/iterate_bedcov_cds.sh >& run_bedcov_cds_out &
 
 This seems to work. work out coverage plots for cds only.
 
-![boxplot for coverage percentiles for cds only](Images/boxplot_PRJNA390669_cds.png)
+![boxplot for coverage percentiles for cds only](~/git/mtb_modules/Images/boxplot_PRJNA390669_cds.png)
 Run baerhunter 'count_features' on all datasets with new bh gff (like Rosanna)? Or do I use R Subread 'feature counts?' like YenYi. Essentially, the same thing, with a formatted output file. Do I need to filter for expression?
 
 write script to iterate through datasets

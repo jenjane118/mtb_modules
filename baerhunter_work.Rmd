@@ -436,13 +436,42 @@ This is determined for 3 datasets already: PRJNA327080_15, PRJNA390669_12, PRJEB
 PRJNA390669 is very high depth
 
 ```{R boxplot_PRJNA390669, echo=FALSE, fig.width=4, fig.asp=0.8, fig.align="center"}
+library(dplyr)
+library(tidyr)
 dataset = "PRJNA390669_12"
 
 pos_per.df<-read.delim("percentiles/PRJNA390669_12_pos.tsv", sep = " ",
                        stringsAsFactors = F)
+View(pos_per.df)
+dim(pos_per.df)
+
+new_df<-reshape(pos_per.df, 
+        direction = "long",
+        varying = list(names(pos_per.df)[1:12]),
+        v.names = "Count",
+        idvar = "Percent",
+        timevar = "Sample",
+        times = 1:12)
+
+new_df$Strand<-rep("Pos", nrow(new_df))
+View(new_df)
+
 neg_per.df<-read.delim("percentiles/PRJNA390669_12_neg.tsv", sep = " ",
                        stringsAsFactors = F)
 
+# neg_long<-reshape(neg_per.df,
+#                   direction="long",
+#                   varying = list(names(neg_per.df)[1:12]),
+#                   v.names = "Count",
+#                   idvar = "Percent",
+#                   timevar = "Sample",
+#                   times = 1:12)
+# neg_long$Strand<-rep("Neg", nrow(neg_long))
+# new_df<-rbind(new_df, neg_long)
+
+
+
+png("Images/high_depth_distr.png", width=600, height=600)
 boxplot(t(pos_per.df), show.names=TRUE,
         main = paste("Percentile distrbution in Dataset",dataset),
         ylab="Number of reads in given percentile (raw)",
@@ -450,8 +479,10 @@ boxplot(t(pos_per.df), show.names=TRUE,
         col = "light blue",
         xlab= "Percentiles of number of reads"
 )
+dev.off()
+
 par(new=T)
-boxplot(t(neg_per.df), show.names=TRUE,
+boxplot(t(neg_per.df), show.names=TRUE, 
         col = "pink",
         ylim = c(1,4000)
         # ylab="Number of reads in given percentile (raw)"
@@ -475,6 +506,7 @@ neg_per.df<-read.delim("percentiles/PRJNA327080_15_neg.tsv", sep = " ",
                        stringsAsFactors = F)
 
 par(mfrow = c(1,1))
+png("Images/med_depth_distr.png", width=600, height = 600)
 boxplot(t(pos_per.df), show.names=TRUE,
         main = paste("Percentile distrbution in Dataset",dataset),
         ylab="Number of reads in given percentile (raw)",
@@ -482,6 +514,7 @@ boxplot(t(pos_per.df), show.names=TRUE,
         col = "light blue",
         xlab= "Percentiles of number of reads"
 )
+dev.off()
 par(new=T)
 boxplot(t(neg_per.df), show.names=TRUE,
         col = "pink",

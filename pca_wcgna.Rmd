@@ -102,7 +102,7 @@ sizeFactors(dds_raw)
 counts_normalized<-counts(dds_raw, normalized=TRUE)
 class(counts_normalized)
 #sum of depth after normalization
-colSums(counts(dds_raw, normalized=T))
+colSums(counts(dds_raw, normalized=F))
 
 #boxplot(counts_normalized, notch = TRUE , las=2, cex.axis = 0.7,ylim = c(0,4500),
 #        main = "untransformed  read  counts", ylab = "read  counts")
@@ -505,10 +505,12 @@ pca_rlogc_limma_df$condition<-PCA.data$condition
 pca_rlogc_limma_df$dataset <-PCA.data$dataset
 summary(PCA.data.plot)
 
+png("PCA12_rlog_limma.png", type="quartz", width=720, height=480)
 #PCA plot for rlog transformed data 
 limma_rlogc_plot <- ggplot(pca_rlogc_limma_df,aes(x=PC1,y=PC2,color=dataset,shape=condition)) + scale_shape_manual(values = 0:21) + geom_point(size=3) + xlab("PC1 (33%)") + ylab("PC2 (24%)")
 limma_rlogc_plot <- limma_rlogc_plot + scale_color_manual(values = toned_down_pal) + theme_bw()
 limma_rlogc_plot
+dev.off()
 
 #PC 2 and 3
 limma_rlogc_plot23 <- ggplot(pca_rlogc_limma_df,aes(x=PC2,y=PC3,color=dataset,shape=condition)) + scale_shape_manual(values = 0:21) + geom_point(size=3) + xlab("PC2 (24%)") + ylab("PC3 (11%)")
@@ -564,7 +566,7 @@ Yay, that seemed to work, controls seem to cluster together, along with re-aerat
 
 6) WGCNA 
 
-[WCGNA website](https://horvath.genetics.ucla.edu/html/CoexpressionNetwork/Rpackages/WGCNA/)
+[WGCNA website](https://horvath.genetics.ucla.edu/html/CoexpressionNetwork/Rpackages/WGCNA/)
 
 
 
