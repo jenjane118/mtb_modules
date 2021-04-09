@@ -7,7 +7,7 @@ This notebook continues on from 'Mtb_modules_notebook.Rmd", using the counts mat
 
 
 
-```{r}
+```{r message=FALSE}
 setwd("~/git/mtb_modules")
 
         #installation of R packages 
@@ -52,7 +52,7 @@ so I don't really have to indicate a 'control' for this experiment since I'm not
 ```{r deseq_construct}
 # read in counts matrix and create deseq dataset
 
-countdata<-read.csv("count_matrix_complete.csv")
+countdata<-read.csv("count_matrix_complete.csv", header=T, row.names=1)
 head(countdata)
 #inspection of matrix 
 class(countdata)
@@ -66,7 +66,7 @@ colnames(datasets)<-c("sample", "study")
 # read in conditions/sample
 conditions<-read.csv("mtb_conditions.txt")
 conditions$study<-datasets$study
-View(conditions)
+#View(conditions)
 
 # create DeSeq dataset
 
@@ -284,7 +284,6 @@ custom
 ```{r dendrogram_prelimma}
 # make hierarchical dendrogram to compare with post-limma
 #dendrogram for rlog transformed data
-library(WGCNA)
 
 sizeGrWindow(12,9)
 par(cex=0.6)
@@ -401,7 +400,7 @@ controls<-c("reaeration_day3", "reaeration_day4", "tyloxapol_pH7.0", "dextrose_e
 control_conditions.df<-data.frame(conditions[,1:2])
 control_conditions.df[which(conditions$condition %in%       controls),2]<-'control' 
 class(control_conditions.df)
-View(control_conditions.df)
+#View(control_conditions.df)
 ```
 
 Create new deseq dataset with design matrix using controls
@@ -438,20 +437,21 @@ Do rlog transformation blind T/F to see if control effects
 # use raw count data, not normalised for sequencing depth
 
 # rlog transformed blind=F
-rlog_control<-rlog(dds_control, blind=F)
+#rlog_control<-rlog(dds_control, blind=F)
 #create summarized experiment matrix (se=summarized experiment)
-rlog_control_se <- assay(rlog_control)
+#rlog_control_se <- assay(rlog_control)
                  
 # rlog blind=T
-rlc_T<-rlog(dds_control)
-rlc_T_control_se<-assay(rlc_T)
+rlog_control<-rlog(dds_control)
+rlog_control_se<-assay(rlog_control)
 
 par(mfrow=c(1,2))
-plot(rlog_control_se[,18:19], cex=.1, main = "rlog transformed, blind=F", xlim=c(0,18), ylim=c(0,18))
+plot(rlog_control_se[,18:19], cex=.1, main = "rlog transformed, blind=T", xlim=c(0,18), ylim=c(0,18))
 
-plot(rlc_T_control_se[,18:19], cex=.1, main = "rlog transformed, blind=TRUE", xlim=c(0,18), ylim=c(0,18))
 ```
+
 ```{r boxplot_rlog_controls}
+study_colors <- c(rep("#440154FF",3),rep("#31688EFF",22),rep("#FDE725FF",15),rep("#35B779FF",12))
 par(mfrow=c(1,1))
 rlc_boxplot <- boxplot(rlog_control_se, 
                         PchCex =0.01,
@@ -483,16 +483,22 @@ limma_rlogc<-removeBatchEffect(x=rlog_control_se,
                                   batch=batch.table2$study,
                                   batch2=NULL,
                                   covariates=NULL,
-                                  design=model.matrix(~batch.table2$condition)) 
+                              design=model.matrix(~batch.table2$condition)) 
 
 #Coefficients not estimable:  batch3 
 #Partial NA coefficients for 6486 probe(s)
+head(limma_rlogc)
+
+# write to csv to save for wgcna: 
+write.csv(limma_rlogc, "~/git/mtb_modules/limma_rlogc.csv", quote=F)
 
 ```
 Look at PCA for limma corrected.
 
 ```{r pca_limma_rlogc}
 # make PCA plot for limma batch corrected control set (limma_rlogc)
+#establishing a custom viridis colour palette
+toned_down_pal <- c("#FFBF00","#31688EFF","#35B779FF","#CA0020")
 
 #generating PCA table 
 PCA.data <- data.frame(row.names=colnames(countdata),
@@ -568,8 +574,132 @@ Yay, that seemed to work, controls seem to cluster together, along with re-aerat
 
 [WGCNA website](https://horvath.genetics.ucla.edu/html/CoexpressionNetwork/Rpackages/WGCNA/)
 
+```{r data_formatting}
+#WGCNA 
+
+library(WGCNA)
+options(stringsAsFactors = FALSE)
+analysis <- as.data.frame(t(limma_rlogc))
+# rather than generate limma_rlogc every time, can use limma_rlogc.csv
 
 
+# rows are samples (52), cols are genes (6483)
+dim(analysis)
+
+#defining trait data with control conditions 
+traitData <- control_conditions.df
+dim(traitData)
+
+# column names are 'sample_names' and 'condition'
+#reformatting data to match
+sample.names <- rownames(analysis)
+traitRows    <- match(colnames(rlog_control_se),traitData$sample_name)
+datTraits    <- traitData[traitRows,-1, drop=FALSE]  ## drop = F so that stays a dataframe instead of factor
+#relabel row names with sample names 
+rownames(datTraits)         <- traitData[traitRows,1]
+datTraits[is.na(datTraits)] <- 0 
+
+head(datTraits)
+```
+
+```{r soft_threshold_choice}
+ #choose a set of soft-thresholding powers
+        powers = c(c(1:10), seq(from = 12, to=20, by=2))
+        #call the network topology analysis function
+        sft = pickSoftThreshold(analysis, 
+                                powerVector = powers, 
+                                verbose = 5)
+        #plotting the output 
+        sizeGrWindow(9, 5)
+        par(mfrow = c(1,1))
+        cex1 = 0.9
+        # Scale-free topology fit index as a function of the soft-thresholding power
+        plot(sft$fitIndices[,1], 
+             -sign(sft$fitIndices[,3])*sft$fitIndices[,2],
+             xlab="Soft Threshold (power)",
+             ylab="Scale Free Topology Model Fit,signed R^2",
+             type="n",
+             main = paste("Scale independence"))
+        text(sft$fitIndices[,1], 
+             -sign(sft$fitIndices[,3])*sft$fitIndices[,2],
+             labels=powers,
+             cex=cex1,
+             col="red")
+        #R^2 cut-off line
+        abline(h=0.80,col="red")
+        #mean connectivity as a function of the soft-thresholding power
+        plot(sft$fitIndices[,1], 
+             sft$fitIndices[,5],
+             xlab="Soft Threshold (power)",
+             ylab="Mean Connectivity", 
+             type="n",
+             main = paste("Mean connectivity"))
+        text(sft$fitIndices[,1], 
+             sft$fitIndices[,5], 
+             labels=powers, 
+             cex=cex1,
+             col="red")
+```
+
+I will try 14 first and see how that looks.
+
+Parameters that may need adjustment:
+
+corType="bicor": biweight midcorrelation (vs Pearson)
+I think this is faster and requires less computation than pearson?
+(Looking up info on this in this book: "Introduction to Robust Estimation and Hypothesis Testing", Rand Wilcox, Academic Press, 1997.)
+
+'deepSplit' is measure of how sensitive module detection should be to module splitting. 0-4, 4 is most sensitive
+
+'minModuleSize' is minimum module size for module detection
+
+'reassignThreshold' is p-value ratio threshold for reassigning genes between modules
+>After all blocks have been processed, the function checks whether there are genes whose KME in the module they assigned is lower than KME to another module. If p-values of the higher correlations are smaller than those of the native module by the factor reassignThresholdPS, the gene is re-assigned to the closer module.
+
+'mergeCloseModules'
+>In the last step, modules whose eigengenes are highly correlated are merged. This is achieved by clustering module eigengenes using the dissimilarity given by one minus their correlation, cutting the dendrogram at the height mergeCutHeight and merging all modules on each branch. The process is iterated until no modules are merged. See mergeCloseModules for more details on module merging.
+
+'mergeCutHeight': dendrogram cut height for module merging.
 
 
+```{r coexpression_network}
+#create coexpression network and identify modules
+net = blockwiseModules(analysis, 
+                      maxBlockSize = 6500,     
+                      corType = "bicor", 
+                      networkType = "signed",
+                      power = 14, 
+                      TOMType = "signed", 
+                      minModuleSize = 20,
+                      reassignThreshold = 0, 
+                      mergeCutHeight = 0.25, 
+                      deepSplit = 2,
+                      numericLabels = TRUE,
+                      saveTOMs = TRUE,
+                      saveTOMFileBase = "testTOM", 
+                      pamRespectsDendro = FALSE,
+                      verbose = 3)
+
+#how many modules identified and what colours are
+module.table <- table(net$colors)
+write.csv(table(net$colors), file = "clusteringblocks.csv")
+
+# display dendrogram 
+sizeGrWindow(12, 9)
+#convert labels to colours for plotting
+mergedColors <- labels2colors(net$colors)
+#plot dendrogram and module colors underneath
+plotDendroAndColors(net$dendrograms[[1]], 
+                    mergedColors[net$blockGenes[[1]]],
+                    "Module colors",
+                    dendroLabels = FALSE, hang = 0.03,
+                    addGuide = TRUE, guideHang = 0.05)
+
+#save the module assignment and module eigengene info for subsequent analysis
+moduleLabels = net$colors
+moduleColors = labels2colors(net$colors)
+table(moduleColors)
+write.csv(table(moduleColors), file = "clusteringblocks2.csv")
+      
+```
 

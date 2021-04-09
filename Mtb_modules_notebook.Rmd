@@ -732,12 +732,16 @@ countdata_CDS<-cbind(gen_a, gen_b, gen_c, gen_d)
 nrow(countdata_CDS)
 #4018
 
+# rownames are "gene:Rv0001"
+
 # create countdata file for putative srnas
 rna_a<-read.delim("~/git/mtb_modules/count_files/counts_PRJEB65014/putative_sRNA_Counts.csv", header=T)
 rna_b<-read.delim("~/git/mtb_modules/count_files/counts_PRJNA327080_15/putative_sRNA_Counts.csv", header=T)
 rna_c<-read.delim("~/git/mtb_modules/count_files/counts_PRJNA278760/putative_sRNA_Counts.csv", header=T)
 rna_d<-read.delim("~/git/mtb_modules/count_files/PRJNA390669_12/putative_sRNA_Counts.csv", header=T)
 countdata_rna<-cbind(rna_a, rna_b, rna_c, rna_d)
+
+# rownames = "putative_sRNA:m2031_2292"
 
 #create countdata file for putative utrs
 utr_a<-read.delim("~/git/mtb_modules/count_files/counts_PRJEB65014/putative_UTR_Counts.csv", header=T)
@@ -747,12 +751,13 @@ utr_d<-read.delim("~/git/mtb_modules/count_files/PRJNA390669_12/putative_UTR_Cou
 
 countdata_utr<-cbind(utr_a, utr_b, utr_c, utr_d)
 
+
 #create a combined count matrix for all features 
 countdata <- rbind(countdata_CDS,countdata_utr,countdata_rna)
 colnames(countdata) <- gsub("\\_sorted$","",colnames(countdata))
 
-#write table of count matrix
-write.csv(countdata, "count_matrix_complete.csv", quote=F, row.names = F)
+#write table of count matrix (has gene names as row names)
+write.csv(countdata, "count_matrix_complete.csv", quote=F, row.names = T)
 
 # dataframe of sample names and which dataset it belongs to
 dataset<-c(rep("PRJEB65014_3/E-MTAB-6011", 3), 
