@@ -400,7 +400,9 @@ controls<-c("reaeration_day3", "reaeration_day4", "tyloxapol_pH7.0", "dextrose_e
 control_conditions.df<-data.frame(conditions[,1:2])
 control_conditions.df[which(conditions$condition %in%       controls),2]<-'control' 
 class(control_conditions.df)
-#View(control_conditions.df)
+View(control_conditions.df)
+#write_table of df
+write.csv(control_conditions.df, "~/git/mtb_modules/control_conditions_df.txt", quote=F, row.names = F, )
 ```
 
 Create new deseq dataset with design matrix using controls
@@ -568,19 +570,28 @@ dev.off()
 ```
 Yay, that seemed to work, controls seem to cluster together, along with re-aeration days 1 and 2, and high iron.
 
-![batch correction dendrogram with controls](Images/limma_rlogc_dend.png)
+![batch correction dendrogram with controls](Images/limma_rlogc_dend_controls.png)
 
 6) WGCNA 
 
 [WGCNA website](https://horvath.genetics.ucla.edu/html/CoexpressionNetwork/Rpackages/WGCNA/)
+
+[blockwise analysis for large datasets](https://horvath.genetics.ucla.edu/html/CoexpressionNetwork/Rpackages/WGCNA/Tutorials/FemaleLiver-02-networkConstr-blockwise.pdf)
+
+Do we need to do blockwise analysis? We have 6000+ genes.
+"A 16GB workstation should handle up to 20000 probes. In general it is preferable to analyze a data set in as few blocks as possible" I've set max block size as 6500 so that should include all the genes. THese should have very similar results, and since I did it all in one block anyway, shouldn't be an issue.
 
 ```{r data_formatting}
 #WGCNA 
 
 library(WGCNA)
 options(stringsAsFactors = FALSE)
-analysis <- as.data.frame(t(limma_rlogc))
+
 # rather than generate limma_rlogc every time, can use limma_rlogc.csv
+# these are batch corrected expression values:
+#limma_rlogc<-read.csv("~/git/mtb_modules/limma_rlogc.csv")
+
+analysis <- as.data.frame(t(limma_rlogc))
 
 
 # rows are samples (52), cols are genes (6483)
@@ -599,7 +610,7 @@ datTraits    <- traitData[traitRows,-1, drop=FALSE]  ## drop = F so that stays a
 rownames(datTraits)         <- traitData[traitRows,1]
 datTraits[is.na(datTraits)] <- 0 
 
-head(datTraits)
+#head(datTraits)
 ```
 
 ```{r soft_threshold_choice}
@@ -649,7 +660,7 @@ corType="bicor": biweight midcorrelation (vs Pearson)
 I think this is faster and requires less computation than pearson?
 (Looking up info on this in this book: "Introduction to Robust Estimation and Hypothesis Testing", Rand Wilcox, Academic Press, 1997.)
 
-'deepSplit' is measure of how sensitive module detection should be to module splitting. 0-4, 4 is most sensitive
+'deepSplit' is measure of how sensitive module detection should be to module splitting. 0-4, 4 is most sensitive, 2 is medium 
 
 'minModuleSize' is minimum module size for module detection
 
@@ -672,34 +683,231 @@ net = blockwiseModules(analysis,
                       TOMType = "signed", 
                       minModuleSize = 20,
                       reassignThreshold = 0, 
-                      mergeCutHeight = 0.25, 
+                      mergeCutHeight = 0.15, 
                       deepSplit = 2,
                       numericLabels = TRUE,
                       saveTOMs = TRUE,
                       saveTOMFileBase = "testTOM", 
                       pamRespectsDendro = FALSE,
                       verbose = 3)
+summary(net)
 
 #how many modules identified and what colours are
-module.table <- table(net$colors)
+module.table <- table(net$colors)  #this creates a 'contingency table'
+
 write.csv(table(net$colors), file = "clusteringblocks.csv")
 
 # display dendrogram 
-sizeGrWindow(12, 9)
+png("power14_split2_minmod20_cuth15.png", width=1000, height=650)
+#sizeGrWindow(12, 9)
 #convert labels to colours for plotting
 mergedColors <- labels2colors(net$colors)
+
 #plot dendrogram and module colors underneath
 plotDendroAndColors(net$dendrograms[[1]], 
                     mergedColors[net$blockGenes[[1]]],
                     "Module colors",
                     dendroLabels = FALSE, hang = 0.03,
                     addGuide = TRUE, guideHang = 0.05)
-
+dev.off()
 #save the module assignment and module eigengene info for subsequent analysis
+# each gene assigned a module number
 moduleLabels = net$colors
+#each gene assigned a color
 moduleColors = labels2colors(net$colors)
+
+# module eigengenes
+MEs = net$MEs;
+#MEs
+
+#save dendrogram data (hclust)
+geneTree = net$dendrograms[[1]];
+# this saves info as R object, but will this be too big?
+save(MEs, moduleLabels, moduleColors, geneTree, 
+     file = "~/git/tn_seq/TB_modules_network_construction.RData")
+
 table(moduleColors)
+s<-as.data.frame(table(moduleColors), row.names = NULL,
+              responseName = "Freq", stringsAsFactors = TRUE,
+              sep = "", base = list(LETTERS))
+s<-s[order(s$Freq, decreasing = T),]
+head(s)
+# turquoise, blue, brown, yellow, green, red are largest modules
+
 write.csv(table(moduleColors), file = "clusteringblocks2.csv")
-      
+
 ```
+
+With 14: 
+Not horrible, but maybe not as defined gene modules as I would like? good separation of colours, however?
+Creates 38 clusters. 132 genes unassigned.
+Try with 16: Looks worse.
+
+Try deepSplit=3, no difference.
+30 is a 'relatively large' minimum module setting acc to tutorial
+minmodulesize up to 25 (from 20). This may put more in unassigned?
+37 modules, 135 unassigned. not much different. 
+try 30: 29 modules, 290 unassigned, no real improvement in dendrogram.
+
+change mergecutheight to .15 from .25 (kept minmodule size at 30)
+THis causes a lot more modules: 47.
+
+minmodulesize=20, mergecutheight=.15. now it's 63 modules!Dendrogram looks similar, just more colours on bottom. With lower merge cut height, fewer modules are merged on each branch.
+
+Going with this one for now--more modules. Let's see if we get some results with this--can always go back and raise the merge cut height and minmodulesize again.
+
+[module determination wgcna tutorial](https://horvath.genetics.ucla.edu/html/CoexpressionNetwork/Rpackages/WGCNA/Tutorials/Simulated-05-NetworkConstruction.pdf)
+
+TOM plot is a network connectivity plot that shows relationship between genes in module--shows intramodule connectivity in a heatmap
+
+To get a sense how related modules are to one another--can summarize each module by its eigengene (1st PC):
+
+The eigengene dendrogram and heatmap identify groups of correlated eigengenes termed meta-modules. 
+
+
+```{r adjacency_heatmap}
+#define numbers of genes and samples
+nGenes = ncol(analysis)
+nSamples = nrow(analysis)
+#recalculate MEs with color labels
+MEs0 = moduleEigengenes(analysis, moduleColors)$eigengenes
+#MEs0
+MEs = orderMEs(MEs0)
+#head(MEs)
+
+# Plot the heatmap matrix 
+par(cex = 1.0)
+plotEigengeneNetworks(MEs, "Eigengene adjacency heatmap", 
+                      marHeatmap = c(3,4,2,2),
+                      plotDendrograms = FALSE, 
+                      xLabelsAngle = 90)
+
+```
+
+
+
+```{r}
+# look at pairwise observations (use="p", method="pearson", default)
+sum_conn<-signif(cor(MEs, use="p"), 2)
+#sum_conn[1:10,]
+# use this to cluster the eigengenes
+dissimME=(1-t(cor(MEs, method="p")))/2 
+hclustdatME=hclust(as.dist(dissimME), method="average" )
+# Plot the eigengene dendrogram
+png("~/git/mtb_modules/clust_eigengenes.png", height = 800, width=1200)
+par(mfrow=c(1,1))
+plot(hclustdatME, main="Clustering tree based on the module eigengenes")
+dev.off()
+```
+
+![clustering tree of MEs](~/git/mtb_modules/clust_eigengenes.png)
+
+Make heatmap plots of module expressions. This may help identify modules that are “held together” by spurious correlations caused by outlying arrays
+
+```{r heatmap_plots_modules}
+#make heatmaps of module membership for 5 biggest modules
+
+png("mod_mem_heatmaps.png", width=1000, height=3000)
+#sizeGrWindow(8,9)
+par(mfrow=c(5,1), mar=c(1, 2, 4, 1))
+for (i in 1:5){
+  which.module=s$moduleColors[i];
+  plotMat(t(scale(analysis[,moduleColors==which.module ])),
+        nrgcols=63,
+        rlabels=T,
+        clabels=T,
+        rcols=which.module, 
+        title=which.module )
+}  
+dev.off()
+```
+
+![heatmaps of 5 largest modules](~/git/mtb_modules/mod_mem_heatmaps.png)
+
+[wgcna tutorial on visualising networks](https://horvath.genetics.ucla.edu/html/CoexpressionNetwork/Rpackages/WGCNA/Tutorials/FemaleLiver-05-Visualization.pdf)
+
+
+>It is often interesting to study the relationships among the found modules. One can use the eigengenes as representative profiles and quantify module similarity by eigengene correlation. The package contains a convenient function plotEigengeneNetworks that generates a summary plot of the eigengene network. It is usually informative to add a clinical trait (or multiple traits) to the eigengenes to see how the traits fit into the eigengene network:
+
+How to use plotEigengeneNetwork without adding traits? (datTraits)
+
+I want to measure module significance to determine which are most interesting modules:
+
+>Measure of module significance as average gene significance
+>One can also define a measure of module significance as the average gene significance of all genes in the module. We use the absolute value for defining a correlation based gene significance measure.
+>A gene significance measure could be defined without reference to a sample trait. For example, it could indicate pathway membership (1 or 0) or essentiality (1 or 0). Could we define non-coding?
+
+```{r module_significance}
+#We use the absolute value for defining a correlation based gene significance measure.
+# need to define gene significance
+# y is a particular trait we want to look at
+# y=datTraits$y
+
+GS1=as.numeric(cor(y,datExpr, use="p"))
+GeneSignificance=abs(GS1)
+
+# Next module significance is defined as average gene significance.
+
+ModuleSignificance=tapply(GeneSignificance, colorh1, mean, na.rm=T)
+
+#Plot gene significance against module membership:
+sizeGrWindow(8,7)
+par(mfrow = c(1,1))
+plotModuleSignificance(GeneSignificance,colorh1)
+
+
+```
+
+Now how do we look at what genes are members of particular modules? How to determine if they are functionally related?
+I am more interested in describing the relationships between genes in one module.
+
+[determining membership in important modules](https://horvath.genetics.ucla.edu/html/CoexpressionNetwork/Rpackages/WGCNA/Tutorials/Simulated-07-Membership.pdf)
+
+```{r}
+#calculate intramodular connectivity ('degree')
+#whole network connectivity = kTotal
+#within module connectivity = kwithin
+#kOut=kTotal-kWithin
+#kDiff=kIn-kOut=2*kIn-kTotal
+
+ADJ1=abs(cor(analysis, use="p"))^14     #they use 6 in tutorial which is same as soft power threshold they use. should i use softpower threshold I used? (14)
+Alldegrees1=intramodularConnectivity(ADJ1, moduleColors)
+head(Alldegrees1)
+
+#plot the gene significance against intramodular connectivity
+# but I don't know how to decide gene significance? by condition?
+
+colorlevels=unique(moduleColors)
+sizeGrWindow(9,6) 
+par(mfrow=c(2,as.integer(0.5+length(colorlevels)/2))) 
+par(mar = c(4,5,3,1))
+for (i in c(1:length(colorlevels)))
+{
+  whichmodule=colorlevels[[i]];
+  restrict1 = (moduleColors==whichmodule);
+  verboseScatterplot(Alldegrees1$kWithin[restrict1],
+                   GeneSignificance[restrict1],
+                   col=moduleColors[restrict1],
+                   main=whichmodule,
+                   xlab = "Connectivity", ylab = "Gene Significance", abline = TRUE)
+}
+
+```
+
+define a module eigengene-based connectivity measure for each gene as the correlation between a the gene expression and the module eigengene
+
+>kMEbrown(i) = cor(xi, MEbrown)
+
+xi is the gene expression profile of gene i and MEbrown is the module eigengene
+
+```{r gene_expr_me_cor}
+# create dataframe with module membership values (MM) for each module
+# values are module membership for each gene in each module
+
+datKME=signedKME(analysis, MEs, outputColumnName = "MM.")
+head(datKME)
+
+```
+
+
 

@@ -1,0 +1,104 @@
+---
+title: "WGCNA"
+output: html_notebook
+---
+I've included two files for this script:
+
+limma_rlogc.csv
+control_conditions_df.txt
+
+```{r data_formatting}
+#WGCNA 
+
+library(WGCNA)
+options(stringsAsFactors = FALSE)
+
+# rather than generate limma_rlogc every time, can use limma_rlogc.csv
+# these are batch corrected expression values:
+#limma_rlogc<-read.csv("limma_rlogc.csv")
+
+analysis <- as.data.frame(t(limma_rlogc))
+
+
+# rows are samples (52), cols are genes (6483)
+dim(analysis)
+
+#defining trait data with control conditions 
+
+# from saved table
+#traitData<-read.csv("control_conditions_df.txt")
+
+traitData <- control_conditions.df
+dim(traitData)
+
+# column names are 'sample_names' and 'condition'
+#reformatting data to match
+sample.names <- rownames(analysis)
+traitRows    <- match(colnames(rlog_control_se),traitData$sample_name)
+datTraits    <- traitData[traitRows,-1, drop=FALSE]  ## drop = F so that stays a dataframe instead of factor
+#relabel row names with sample names 
+rownames(datTraits)         <- traitData[traitRows,1]
+datTraits[is.na(datTraits)] <- 0 
+
+head(datTraits)
+```
+You can run the following script to look at the eigengenes, or I've included the two .csv files:
+clusteringblocks.csv
+clusteringblocks2.csv
+
+
+```{r coexpression_network}
+#create coexpression network and identify modules
+net = blockwiseModules(analysis, 
+                      maxBlockSize = 6500,     
+                      corType = "bicor", 
+                      networkType = "signed",
+                      power = 14, 
+                      TOMType = "signed", 
+                      minModuleSize = 20,
+                      reassignThreshold = 0, 
+                      mergeCutHeight = 0.15, 
+                      deepSplit = 2,
+                      numericLabels = TRUE,
+                      saveTOMs = TRUE,
+                      saveTOMFileBase = "testTOM", 
+                      pamRespectsDendro = FALSE,
+                      verbose = 3)
+
+#how many modules identified and what colours are
+module.table <- table(net$colors)
+head(module.table)
+dim(module.table)
+#module number and number of genes
+write.csv(table(net$colors), file = "clusteringblocks.csv")
+
+# display dendrogram 
+png("power14_split2_minmod20_cuth15.png", width=1000, height=650)
+#sizeGrWindow(12, 9)
+#convert labels to colours for plotting
+mergedColors <- labels2colors(net$colors)
+#plot dendrogram and module colors underneath
+plotDendroAndColors(net$dendrograms[[1]], 
+                    mergedColors[net$blockGenes[[1]]],
+                    "Module colors",
+                    dendroLabels = FALSE, hang = 0.03,
+                    addGuide = TRUE, guideHang = 0.05)
+dev.off()
+#save the module assignment and module eigengene info for subsequent analysis
+# each gene assigned a module number
+moduleLabels = net$colors
+#each gene assigned a color
+moduleColors = labels2colors(net$colors)
+# module eigengenes?
+MEs = net$MEs;
+#save dendrogram data (hclust)
+geneTree = net$dendrograms[[1]];
+# this saves info as R object
+save(MEs, moduleLabels, moduleColors, geneTree, 
+     file = "~/git/tn_seq/TB_modules_network_construction.RData")
+
+table(moduleColors)
+# table with module colours and number of genes
+write.csv(table(moduleColors), file = "clusteringblocks2.csv")
+      
+```
