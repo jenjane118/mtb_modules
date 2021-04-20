@@ -492,7 +492,7 @@ limma_rlogc<-removeBatchEffect(x=rlog_control_se,
 head(limma_rlogc)
 
 # write to csv to save for wgcna: 
-write.csv(limma_rlogc, "~/git/mtb_modules/limma_rlogc.csv", quote=F)
+write.csv(limma_rlogc2, "~/git/mtb_modules/limma_rlogc.csv", quote=F)
 
 ```
 Look at PCA for limma corrected.
@@ -589,15 +589,20 @@ options(stringsAsFactors = FALSE)
 
 # rather than generate limma_rlogc every time, can use limma_rlogc.csv
 # these are batch corrected expression values:
-#limma_rlogc<-read.csv("~/git/mtb_modules/limma_rlogc.csv")
+limma_rlogc<-read.csv("~/git/mtb_modules/limma_rlogc.csv", header = T, row.names = 1)  #row.names=1 so won't assign colname to col of rownames
 
 analysis <- as.data.frame(t(limma_rlogc))
 
-
+head(analysis)
 # rows are samples (52), cols are genes (6483)
 dim(analysis)
 
+save(analysis, file = "~/git/mtb_modules/datExpr.RData")
+
 #defining trait data with control conditions 
+#control_conditions.df<-
+#               read.csv("~/git/mtb_modules/control_conditions_df.txt",                 )
+
 traitData <- control_conditions.df
 dim(traitData)
 
@@ -609,7 +614,9 @@ datTraits    <- traitData[traitRows,-1, drop=FALSE]  ## drop = F so that stays a
 #relabel row names with sample names 
 rownames(datTraits)         <- traitData[traitRows,1]
 datTraits[is.na(datTraits)] <- 0 
-
+head(datTraits)
+# save for further analysis
+save(datTraits, file="~/git/mtb_modules/datTraits.RData")
 #head(datTraits)
 ```
 
@@ -722,9 +729,14 @@ MEs = net$MEs;
 
 #save dendrogram data (hclust)
 geneTree = net$dendrograms[[1]];
-# this saves info as R object, but will this be too big?
-save(MEs, moduleLabels, moduleColors, geneTree, 
-     file = "~/git/tn_seq/TB_modules_network_construction.RData")
+
+# this saves info as R object
+#save(MEs, moduleLabels, moduleColors, geneTree, 
+#     file = "~/git/mtb_modules/TB_modules_network_construction.RData")
+
+# to re-load modules data (MEs, etc)
+load("~/git/mtb_modules/TB_modules_network_construction.RData")
+
 
 table(moduleColors)
 s<-as.data.frame(table(moduleColors), row.names = NULL,
@@ -762,7 +774,7 @@ TOM plot is a network connectivity plot that shows relationship between genes in
 
 To get a sense how related modules are to one another--can summarize each module by its eigengene (1st PC):
 
-The eigengene dendrogram and heatmap identify groups of correlated eigengenes termed meta-modules. 
+The eigengene dendrogram and heatmap identify groups of correlated eigengenes termed 'meta-modules'. 
 
 
 ```{r adjacency_heatmap}
@@ -835,28 +847,237 @@ I want to measure module significance to determine which are most interesting mo
 
 >Measure of module significance as average gene significance
 >One can also define a measure of module significance as the average gene significance of all genes in the module. We use the absolute value for defining a correlation based gene significance measure.
->A gene significance measure could be defined without reference to a sample trait. For example, it could indicate pathway membership (1 or 0) or essentiality (1 or 0). Could we define non-coding?
+>A gene significance measure could be defined without reference to a sample trait. For example, it could indicate pathway membership (1 or 0) or essentiality (1 or 0). 
 
-```{r module_significance}
+We could find some gene pathways associated with certain genes in particular modules and test module for correlation with that pathway?
+
+First do some trait correlation: hypoxia (+dextrose dormancy), low iron, cholesterol, control=exponential?
+
+2 methods.
+
+1) Correlate the module eigengenes with the trait
+2) use avg gene significance to measure module significance
+
+
+```{r trait_data}
+
 #We use the absolute value for defining a correlation based gene significance measure.
 # need to define gene significance
 # y is a particular trait we want to look at
 # y=datTraits$y
 
-GS1=as.numeric(cor(y,datExpr, use="p"))
+# rearrange so condition is column and associated samples = 1, unassociated samples = 0
+
+trait_df<-data.frame(matrix(0, nrow = nrow(control_conditions.df), ncol=14))
+dim(trait_df)
+# hypoxia includes dextrose_NRP1dormancy, cholesterolfattyacids_NRP1dormancy, and hypoxia_day0
+# exponential is all control conditions (dextrose exponential, later reaeration)
+# cholesterol includes all growth phases? (exponential, stationary, dormancy)
+rownames(trait_df)<-control_conditions.df$sample_names
+colnames(trait_df)<-c("ammonium", "histidine", "lysine", "dormancy", "reaeration_1to2", "exponential", "butyrate", "butyrate_plus_glu", "glucose", "hi_iron", "low_iron", "acid", "cholesterol", "stationary")
+trait_df$ammonium[1]<-1
+trait_df$histidine[2]<-1
+trait_df$lysine[3]<-1
+trait_df$dormancy[c(4,5,6, 45,46, 51, 52)]<-1  #hypoxia and dormancy
+trait_df$reaeration_1to2[c(7:12)]<-1
+trait_df$exponential[c(13:18, 37,38, 41,42)]<-1 
+trait_df$butyrate[c(19:24)]<-1
+trait_df$butyrate_plus_glu[c(22:24)]<-1
+trait_df$glucose[c(22:24, 25:27)]<-1
+trait_df$hi_iron[c(28:30)]<-1
+#trait_df$low_iron_1day[c(31:33)]<-1
+#trait_df$low_iron_1week[c(34:36)]<-1
+trait_df$low_iron[c(31:36)]<-1
+trait_df$acid[c(39,40)]<-1
+trait_df$cholesterol[c(47:52)]<-1 #also 51 and 52 in dormancy
+#trait_df$dext_stat[c(43,44)]<-1
+#trait_df$dext_dorm[c(45,46)]<-1 (add this to hypoxia)
+#trait_df$chol_expo[c(47,48)]<-1
+#trait_df$chol_stat[c(49,50)]<-1
+#trait_df$chol_dorm[c(51,52)]<-1
+trait_df$stationary[c(43,44,49,50)]<-1   # stat cholesterol,dextrose
+View(trait_df)
+```
+
+```{r module_significance}
+#1 correlate module eigengenes with trait
+y = trait_df$hypoxia
+hypox_signif<-signif(cor(y,MEs, use="p"),2)
+# using pearson? wouldn't kendall be better or is there something else? 
+
+int_hypox<- data.frame(hypox_signif[1,abs(hypox_signif)>0.4])
+nrow(int_hypox) #24 (down to 11 without dextrose_dorm)
+colnames(int_hypox)<-c("correlation")
+
+max(hypox_signif) #turquoise (0.53) #these values went down when i removed samples associated with hypoxia such as dext dorm.j Only dark green still > 0.5 (-0.51)
+min(hypox_signif) #maroon (-0.60)
+
+# compute p-values with interesting modules
+turq_test<-cor.test(y, MEs$MEturquoise)
+turq_test
+turq_test$p.value
+#4.978723e-05  # significance of these particular modules much less without dextrose_dormancy
+maroon_test<-cor.test(y, MEs$MEmaroon)
+maroon_test$p.value
+#2.400853e-06
+MEs_hypox<-rownames(int_hypox)
+
+#get all p-values
+p.values = corPvalueStudent(cor(y,MEs[MEs_hypox], use="p"), nSamples = length(y))
+#add to df
+int_hypox$p_value<-t(p.values)
+
+# use control/exponential
+y = trait_df$exponential
+expo_signif<-signif(cor(y,MEs, use="p"),2)
+int_expo<- data.frame(expo_signif[1,abs(expo_signif)>0.5])
+nrow(int_expo) #4
+colnames(int_expo)<-c("correlation")
+int_expo
+#            correlation
+#MEbrown4           0.57
+#MEwhite           -0.58
+#MEthistle1        -0.55
+#MEroyalblue        0.53
+
+MEs_expo<-rownames(int_expo)
+#get all p-values
+p.values = corPvalueStudent(cor(y,MEs[MEs_expo], use="p"), 
+                            nSamples = length(y))
+#add to df
+int_expo$p_value<-t(p.values)
+
+# low-iron
+y = trait_df$low_iron
+iron_signif<-signif(cor(y,MEs, use="p"),2)
+int_iron<- data.frame(iron_signif[1,abs(iron_signif)>0.5])
+nrow(int_iron) #7
+colnames(int_iron)<-c("correlation")
+int_iron
+#                 correlation
+#MEsteelblue             0.57
+#MEdarkorange            0.59
+#MEcoral1               -0.51
+#MEpalevioletred3       -0.56
+#MEantiquewhite4         0.52
+#MElightpink4            0.52
+#MEmaroon                0.64
+
+MEs_iron<-rownames(int_iron)
+#get all p-values
+p.values = corPvalueStudent(cor(y,MEs[MEs_iron], use="p"), 
+                            nSamples = length(y))
+#add to df
+int_iron$p_value<-t(p.values)
+
+#acid
+y = trait_df$acid
+acid_signif<-signif(cor(y,MEs, use="p"),2)
+int_acid<- data.frame(acid_signif[1,abs(acid_signif)>0.4])
+nrow(int_acid) #0
+# none correlated with acid (only 2 samples)
+
+# cholesterol
+y = trait_df$cholesterol
+chol_signif<-signif(cor(y, MEs, use="p"),2)
+int_chol<-data.frame(chol_signif[1,abs(chol_signif)>0.4])
+nrow(int_chol) #7 (using lower threshold of 0.4)
+#add to df
+colnames(int_chol)<-c("correlation")
+MEs_chol<-rownames(int_chol)
+#get all p-values
+p.values = corPvalueStudent(cor(y,MEs[MEs_chol], use="p"), 
+                            nSamples = length(y))
+#add to df
+int_chol$p_value<-t(p.values)
+int_chol
+#           correlation      p_value
+#MEgreen           0.50 1.545646e-04
+#MEmagenta         0.43 1.654566e-03
+#MEdarkgrey        0.45 7.378448e-04
+#MEdarkred         0.56 1.348458e-05
+#MEyellow         -0.43 1.555336e-03
+#MEplum1          -0.44 1.191917e-03
+#MEsienna3        -0.47 4.000961e-04
+
+# 2 measure of module significance as avg gene significance
+# what is datExp?
+y = trait_df$hypoxia
+GS1=as.numeric(cor(y,analysis, use="p"))
 GeneSignificance=abs(GS1)
 
 # Next module significance is defined as average gene significance.
-
-ModuleSignificance=tapply(GeneSignificance, colorh1, mean, na.rm=T)
+ModuleSignificance=tapply(GeneSignificance, moduleColors, mean, na.rm=T)
 
 #Plot gene significance against module membership:
 sizeGrWindow(8,7)
 par(mfrow = c(1,1))
-plotModuleSignificance(GeneSignificance,colorh1)
-
+plotModuleSignificance(GeneSignificance,moduleColors, "Gene significance across modules, hypoxia")
 
 ```
+
+Maybe should use different function for this: bicorAndPvalue instead of this cor test that finds Pearson correlations.This is what Yen-Yi did.
+
+>faster, one-step calculation of Student correlation p-values for multiple biweight midcorrelations, properly taking into account the actual number of observations. 
+
+```{r bicor_method}
+#construction of biweight midcorrelation and fdr corrected significance of module eigengenes and experimental conditions
+# robustY = F because using binary data for this trait
+moduleTraitBicor.data = bicorAndPvalue(MEs, 
+                              trait_df, 
+                              maxPOutliers=0.05, 
+                              robustY = FALSE)
+moduleTraitBicor <- moduleTraitBicor.data$bicor
+moduleTraitBicorPvalue = as.data.frame(moduleTraitBicor.data$p)
+
+# fdr for multiple testing applied for each trait
+traitNames<-colnames(trait_df)
+modNames <- substring(colnames(MEs),3)
+p_adj_bicor<-data.frame(matrix(0, nrow=length(modNames),
+              ncol=length(traitNames)), 
+              row.names = modNames)
+colnames(p_adj_bicor)<-traitNames
+traitNames == colnames(moduleTraitBicorPvalue)
+for (i in 1:length(traitNames)){
+    p_adj_bicor[,i]<-p.adjust(moduleTraitBicorPvalue[,i],method="fdr")
+        }
+#View(p_adj_bicor)
+# convert df to matrix
+p_adj_moduleTraitBicorPvalue <- as.matrix(p_adj_bicor)
+
+# make heatmap of module/trait correlations
+# this includes bicor correlation calc / adjusted p-value
+textMatrix <- paste(signif(moduleTraitBicor, 2), 
+                             "\n(",
+                             signif(p_adj_moduleTraitBicorPvalue, 1), 
+                             ")", 
+                             sep = "")
+View(textMatrix)
+dim(textMatrix) <- dim(moduleTraitBicor)
+#sizeGrWindow(10,6)
+#par(mar = c(8, 12, 2, 2))
+png("labeled_heatmap.png", width = 1920, height = 1920)
+#heatmap plot 
+        labeledHeatmap(Matrix <- moduleTraitBicor,
+                       xLabels = colnames(trait_df),
+                       yLabels = colnames(MEs),
+                       ySymbols = colnames(MEs),
+                       colorLabels = TRUE,
+                       colors = blueWhiteRed(50),
+                       textMatrix = textMatrix,
+                       setStdMargins = FALSE,
+                       cex.text = 1,
+                       cex.lab.x = 1,
+                       cex.lab.y = 1,
+                       zlim = c(-1,1),
+                       main = paste("Module-trait relationships FDR adjusted p-values"))
+dev.off()
+```
+![heatmap trait/module correlations and p-values](~/git/mtb_modules/labeled_heatmap.png)
+
+Combining cholesterol samples gives some more modules with significant correlation. Also, combining low iron and dormancy. 3 minimal media with specific amino acids all correlating together. butyrate/glucose no real change with combining-still not informative.
+
+There are some interesting modules that are upregulated in dormancy and downregulated in exponential.
 
 Now how do we look at what genes are members of particular modules? How to determine if they are functionally related?
 I am more interested in describing the relationships between genes in one module.
