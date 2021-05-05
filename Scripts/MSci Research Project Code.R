@@ -613,10 +613,14 @@ The following is an R script used to create a count matrix which undergoes norma
         chol.stat <- as.data.frame(datTraits$CholestrolAerobicStationary)
         names(chol.stat) <- "Cholestrol Aerobic Stationary"
 
-        #after identifying which modules correlate significantly with interesting experimental conditions, the next step is to examine the genes within these modules and look at the GS and MM; to do so, construction of a data table based on the experimental condition of interest is required
+        #after identifying which modules correlate significantly with interesting 
+        #experimental conditions, the next step is to examine the genes within these 
+        #modules and look at the GS and MM; to do so, construction of a data table 
+        #based on the experimental condition of interest is required
 
         #generating correlation and significance data table for hypoxia 
-        bicor_calc <- as.data.frame(bicorAndPvalue(analysis, MEs))
+        bicor_calc <- as.data.frame(bicorAndPvalue(analysis, MEs2))
+        head(bicor_calc)
         geneModuleMembership.b <- bicor_calc[.0:26]
         MMPvalue.b <- bicor_calc[,27:52]
         names(geneModuleMembership.b) = paste("MM", modNames, sep="");
@@ -627,7 +631,9 @@ The following is an R script used to create a count matrix which undergoes norma
         names(geneTraitSignificance.b) = paste("GS.", names(hypoxic.latent), sep="");
         names(GSPvalue.b) = paste("p.GS.", names(hypoxic.latent), sep="");
 
-        #using the GS and MM measures, we can identify genes that have a high significance for weight as well as high module membership in interesting modules, plotting GS against MM 
+        #using the GS and MM measures, we can identify genes that have a high significance
+        #for weight as well as high module membership in interesting modules, 
+        #plotting GS against MM 
         module = "brown"
         column = match(module, modNames);
         moduleGenes = moduleColors==module;

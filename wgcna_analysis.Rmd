@@ -1,0 +1,453 @@
+---
+title: "WGCNA results"
+output: html_notebook
+date: 4 May 2021
+author: Jennifer J. Stiens
+---
+
+Summary of wcgna analysis and organising of results from 'pca_wcgna.Rmd'
+
+Plan:
+1) get list of genes from modules of interest 
+  a) divide CDS from predicted UTRs and sRNAs
+  b) match UTRs with CDS
+  c) check ensembl and uniprot for annotation of CDS
+  d) use Panther to determine GOs for annotated genes
+2) use list of known/annotated sRNAs and determine module membership of these
+    -are they associated with genes of any particular gene pathway?
+3) find out if any of the interesting modules contain predicted sRNAs
+
+
+```{r load_module_data}
+
+library(WGCNA)
+
+# to re-load modules data (MEs, etc)
+load("~/git/mtb_modules/TB_mod_net2_construction.RData")
+
+
+s<-as.data.frame(table(moduleColors2), row.names = NULL, 
+                 responseName = "Freq", stringsAsFactors = T,
+                 sep = "", base = list(LETTERS))
+s<-s[order(s$Freq, decreasing = T),]
+# see size of modules
+head(s)
+
+```
+
+
+
+```{r adjacency_heatmap}
+
+# load expression data
+load("~/git/mtb_modules/datExpr.RData")
+
+#define numbers of genes and samples (analysis=expression data)
+nGenes = ncol(analysis)
+nSamples = nrow(analysis)
+
+#recalculate MEs with color labels
+MEs02 <- moduleEigengenes(analysis, moduleColors2)$eigengenes
+MEs2 <- orderMEs(MEs02)
+
+# Plot the heatmap matrix 
+par(cex = 0.5)
+plotEigengeneNetworks(MEs2, "Eigengene adjancency heatmap",
+                      marHeatmap = c(3,4,2,2),
+                      plotDendrograms = F,
+                      xLabelsAngle = 90)
+
+```
+
+
+```{r eigengene_connectivity}
+# look at pairwise observations (use="p")
+sum_conn<-signif(bicor(MEs2, use="p"), 2)
+#sum_conn[1:10,]
+# use this to cluster the eigengenes
+dissimME=(1-t(bicor(MEs2, use="p")))/2 
+hclustdatME=hclust(as.dist(dissimME), method="average" )
+# Plot the eigengene dendrogram
+#png("~/git/mtb_modules/clust_eigengenes.png", height = 800, width=1200)
+par(mfrow=c(1,1))
+plot(hclustdatME, main="Clustering tree based on the module eigengenes", cex=0.75)
+#dev.off()
+
+```
+
+
+I want to measure module significance to determine which are most interesting modules:
+
+>Measure of module significance as average gene significance: define a measure of module significance as the average gene significance of all genes in the module. We use the absolute value for defining a correlation based gene significance measure.
+
+2 methods.
+
+1) Correlate the module eigengenes with the trait
+2) use avg gene significance to measure module significance
+
+
+```{r trait_data}
+
+# rearrange so condition is column and associated samples = 1, unassociated samples = 0
+#defining trait data with control conditions 
+
+# load conditions/trait data
+control_conditions.df<-
+               read.csv("~/git/mtb_modules/control_conditions_df.txt")
+trait_df<-data.frame(matrix(0, nrow = nrow(control_conditions.df), ncol=14))
+dim(trait_df)
+# hypoxia includes dextrose_NRP1dormancy, cholesterolfattyacids_NRP1dormancy, and hypoxia_day0
+# exponential is all control conditions (dextrose exponential, later reaeration)
+# cholesterol includes all growth phases? (exponential, stationary, dormancy)
+rownames(trait_df)<-control_conditions.df$sample_names
+colnames(trait_df)<-c("ammonium", "histidine", "lysine", "dormancy", "reaeration_1to2", "exponential", "butyrate", "butyrate_plus_glu", "glucose", "hi_iron", "low_iron", "acid", "cholesterol", "stationary")
+trait_df$ammonium[1]<-1
+trait_df$histidine[2]<-1
+trait_df$lysine[3]<-1
+trait_df$dormancy[c(4,5,6, 45,46, 51, 52)]<-1  #hypoxia and dormancy
+trait_df$reaeration_1to2[c(7:12)]<-1
+trait_df$exponential[c(13:18, 37,38, 41,42)]<-1 
+trait_df$butyrate[c(19:20)]<-1
+trait_df$butyrate_plus_glu[c(19:27)]<-1
+trait_df$glucose[c(25:27)]<-1
+trait_df$hi_iron[c(28:30)]<-1
+#trait_df$low_iron_1day[c(31:33)]<-1
+#trait_df$low_iron_1week[c(34:36)]<-1
+trait_df$low_iron[c(31:36)]<-1
+trait_df$acid[c(39,40)]<-1
+trait_df$cholesterol[c(47:52)]<-1 #also 51 and 52 in dormancy
+#trait_df$dext_stat[c(43,44)]<-1
+#trait_df$dext_dorm[c(45,46)]<-1 (add this to hypoxia)
+#trait_df$chol_expo[c(47,48)]<-1
+#trait_df$chol_stat[c(49,50)]<-1
+#trait_df$chol_dorm[c(51,52)]<-1
+trait_df$stationary[c(43,44,49,50)]<-1   # stat cholesterol,dextrose
+#View(trait_df)
+```
+
+1)  Correlating module eigengenes with traits: 
+>bicorAndPvalue: one-step calculation of Student correlation p-values for multiple biweight midcorrelations, properly taking into account the actual number of observations. 
+
+```{r bicor_eigengene_correlation}
+#construction of biweight midcorrelation and fdr corrected significance of module eigengenes and experimental conditions
+# robustY = F because using binary data for this trait
+
+moduleTraitBicor.data2 <- bicorAndPvalue(MEs2,
+                                trait_df,
+                                maxPOutliers=0.05,
+                                robustY = F)
+moduleTraitBicor2 <- moduleTraitBicor.data2$bicor
+moduleTraitBicorPvalue2 <- as.data.frame(moduleTraitBicor.data2$p)
+
+
+
+# fdr for multiple testing applied for each trait
+# for net2
+traitNames<-colnames(trait_df)
+modNames2 <- substring(colnames(MEs2),3)
+p_adj_bicor2<-data.frame(matrix(0, nrow=length(modNames2),
+              ncol=length(traitNames)), 
+              row.names = modNames2)
+#colnames(p_adj_bicor2)<-traitNames
+traitNames == colnames(moduleTraitBicorPvalue2)
+for (i in 1:length(traitNames)){
+    p_adj_bicor2[,i]<-p.adjust(moduleTraitBicorPvalue2[,i],method="fdr")
+        }
+p_adj_moduleTraitBicorPvalue2 <- as.matrix(p_adj_bicor2)
+
+
+# make heatmap of module/trait correlations
+# this includes bicor correlation calc / adjusted p-value
+
+# # for net2
+textMatrix2 <- paste(signif(moduleTraitBicor2, 2),
+                             "\n(",
+                             signif(p_adj_moduleTraitBicorPvalue2, 1),
+                             ")",
+                             sep = "")
+dim(textMatrix2) <- dim(moduleTraitBicor2)
+# 
+png("labeled_heatmap_net2.png", width = 2400, height = 1920)
+#heatmap plot
+par(mar = c(8, 12, 2, 2))
+        labeledHeatmap(Matrix <- moduleTraitBicor2,
+                       xLabels = colnames(trait_df),
+                       yLabels = colnames(MEs2),
+                       ySymbols = colnames(MEs2),
+                       colorLabels = TRUE,
+                       colors = blueWhiteRed(50),
+                       textMatrix = textMatrix2,
+                       setStdMargins = FALSE,
+                       cex.text = 1,
+                       cex.lab.x = 1,
+                       cex.lab.y = 0.75,
+                       zlim = c(-1,1),
+                       main = paste("Module-trait relationships FDR adjusted p-values: net2"))
+dev.off()
+
+```
+
+![heatmap trait/module correlations with p-values net2](~/git/mtb_modules/labeled_heatmap_net2.png)
+
+
+
+2) Module significance/correlation to trait measured by avg gene significance
+>One can also define a measure of module significance as the average gene significance of all genes in the module. When gene significance is defined as the correlation of gene expression profiles with an external trait y, this measure tends to be highly related to the correlation between the module eigengene and y.
+
+
+```{r gene_significance, warning=FALSE}
+#We use the absolute value for defining a correlation based gene significance measure.
+# need to define gene significance
+# y is a particular trait we want to look at
+# y=datTraits$y
+
+y = trait_df$dormancy
+GS_dorm=as.numeric(bicor(y,analysis, maxPOutliers=0.05, 
+                              robustY = FALSE, use="p", pearsonFallback = 'i'))
+# We use the absolute value for defining a correlation based gene significance measure
+dorm_GS=abs(GS_dorm)
+# Next 'module significance' is defined as average gene significance.
+Mod_Sig_dorm=tapply(dorm_GS, moduleColors2, mean, na.rm=T)
+
+y = trait_df$exponential
+GS_expo <- as.numeric(bicor(y,analysis, maxPOutliers=0.05, 
+                              robustY = FALSE,use="p", pearsonFallback = "i"))
+expo_GS=abs(GS_expo)
+Mod_Sig_expo=tapply(expo_GS, moduleColors2, mean, na.rm=T)
+
+y= trait_df$cholesterol
+GS_chol<-as.numeric(bicor(y,analysis, maxPOutliers=0.05, 
+                              robustY = FALSE, use="p", pearsonFallback = "i"))
+chol_GS <- abs(GS_chol)
+Mod_Sig_chol<-tapply(chol_GS, moduleColors2, mean, na.rm=T)
+
+y = trait_df$low_iron
+GS_iron<-as.numeric(bicor(y, analysis, maxPOutliers=0.05, 
+                              robustY = FALSE, use="p", pearsonFallback = "i"))
+iron_GS<-abs(GS_iron)
+Mod_Sig_iron <- tapply(iron_GS, moduleColors2, mean, na.rm=T)
+
+y = trait_df$stationary
+GS_stat <- as.numeric(bicor(y, analysis, maxPOutliers=0.05, 
+                              robustY = FALSE, use="p", pearsonFallback = "i"))
+stat_GS <- abs(GS_stat)
+Mod_Sig_stat <- tapply(stat_GS, moduleColors2, mean, na.rm=T)
+
+# make dataframe of module/trait significance (based on mean GS)
+
+module_sig <- data.frame(Mod_Sig_dorm, Mod_Sig_chol, Mod_Sig_expo, Mod_Sig_iron, Mod_Sig_stat)
+#View(module_sig)
+```
+
+```{r avg_gene_significance}
+#Plot gene significance against module membership:
+#he function calculates the module significance for each module as the average gene
+#significance of the genes within the module (like Mod_Sig_<condition> above). The result is plotted in a barplot or boxplot form. Each bar or box is labeled by the corresponding module color.
+
+# width of boxplot related to size of module
+
+png("gene_significance_plots.png", width = 2800, height = 1400)
+#sizeGrWindow(8,7)
+par(mfrow=c(5,1), mar=c(3, 2, 4, 1))
+#par(mfrow = c(1,1))
+plotModuleSignificance(dorm_GS,moduleColors2, main = "Dormancy gene signif",
+                       cex.names=.8, boxplot = T)
+plotModuleSignificance(expo_GS,moduleColors2, main ="Exponential gene signif",
+                       cex.names=.8, boxplot=T)
+plotModuleSignificance(chol_GS,moduleColors2, main = "Cholesterol gene signif",
+                       cex.names=.8, boxplot=T)
+plotModuleSignificance(iron_GS,moduleColors2, main = "Low iron gene signif",
+                       cex.names=.8, boxplot=T)
+plotModuleSignificance(stat_GS,moduleColors2, main = "Stationary gene signif",
+                       cex.names=.8, boxplot=T)
+dev.off()
+```
+
+![gene significance against module membership](~/git/mtb_modules/gene_significance_plots.png)
+
+
+Look at genes within each module:
+
+```{r module_genes}
+#get lists of genes in each module
+genes_blue<-colnames(analysis[,moduleColors2=="blue"])
+length(genes_blue)
+#578
+
+# can also filter these below
+
+```
+
+3) Filter genes for high intramodular connectivity (and high gene significance). 
+
+Filtering for intramodule connectivity (correlation with module eigengene) is how modules are created anyway (though some difference in cutoff between using signedKME and tree cutting). p-value calculated for correlation of module with trait. intramodular connectivity measure of how connected particular gene is to module, and gene significance is how correlated gene is to trait.
+
+For each gene, correlate gene expression to the module eigengene:
+
+>define a module eigengene-based connectivity measure for each gene as the correlation between a the gene expression and the specific module eigengene
+
+>kMEbrown(i) = cor(xi, MEbrown)
+
+xi is the gene expression profile of gene i and MEbrown is the module eigengene
+
+>Signed eigengene-based connectivity of a gene in a module is defined as the correlation of the gene with the corresponding module eigengene. 'signedKME' function
+
+```{r gene_expr_me_cor}
+# signed eigengene-based connectivity = module membership
+
+# create dataframe with module membership values (MM) for each module
+# values are module membership for each gene in each module (how correlated gene is to each module eigengene)
+
+datKME2=signedKME(analysis, MEs2, outputColumnName = "MM.", corFnc="bicor")
+dim(datKME2)
+```
+
+```{r filter_genes}
+#kMEbrown(i) = cor(x(i), MEbrown)
+# get module correlation and pvalue for specific gene in module
+kMEroyalblue_Rv0040c = bicorAndPvalue(analysis[,"gene:Rv0040c"], MEs2$MEroyalblue)
+kMEroyalblue_Rv0040c$bicor
+kMEroyalblue_Rv0040c$p
+
+# make dataframe of module correlation and pvalue for each gene in each module
+
+# filtering genes for condition gene significance (how correlated gene is to trait) and module membership (how correlated gene is to module)
+
+# example: cholesterol and blue module
+FilterGenes= abs(GS_chol)> .2 & abs(datKME2$MM.blue)>.8 
+table(FilterGenes)
+# get list of gene names
+KME_filtered_blue<-dimnames(data.frame(analysis))[[2]][FilterGenes]
+#head(KME_filtered_blue)
+#length(KME_filtered_blue)
+
+```
+
+Can plot scatterplot of gene significance for particular trait, vs module connectivity (using KME). Could also calculate module connectivity using adjacency matrix/connectivity to other genes within same module (intramodularConnectivity(adjMat, colors)). 
+
+``` {r scatterplot_gene_module_connectivity}
+# scatter plot of genes (GS for dormancy vs module connectivity) using KME
+# use abs() of gene significance
+colorlevels=unique(moduleColors2)
+colorlevels[i]
+#plot 6 modules at at time
+sizeGrWindow(9,6) 
+#png("~/git/mtb_modules/intramodule_conn_plot.png", width = 1200, height = 800)
+par(mfrow=c(2,as.integer(0.5+6/2)))
+par(mar = c(3,4,2,0.5))
+for (i in c(1:48)){
+  whichmodule = substring(colnames(datKME2)[i], 4);
+  #png(paste("~/git/mtb_modules/intramodule_conn_plot", whichmodule,".png", sep=""))
+  restrict1 <- (moduleColors2==whichmodule);
+  verboseScatterplot(datKME2[,i][restrict1],
+                   dorm_GS[restrict1],
+                   corFnc = "bicor",
+                   col=moduleColors2[restrict1],
+                   main=whichmodule,
+                   xlab = "Connectivity", 
+                   ylab = "Gene Significance for dormancy", 
+                   abline = TRUE)
+#dev.off()
+}
+
+```
+
+Can I filter MODULES for connectivity and avg gene significance for each trait?
+Use Mod_Sig_dorm as mean gene signif and moduleTraitBicor2 correlation of module with trait?
+
+```{r filter_for_modules_by_trait}
+
+# for dormancy
+filtered_mods_mem <-NULL
+# for dormancy
+filtered_mods_mem <-NULL
+for (i in 1:ncol(datKME2)){
+   whichmodule = substring(colnames(datKME2)[i], 4);
+   restrict2 = (moduleColors2==whichmodule);
+   if (mean(abs(datKME2[,i][restrict2]) > 0.8) & Mod_Sig_dorm[whichmodule] > 0.3) {
+     filtered_mods_mem <- c(filtered_mods_mem, whichmodule)
+   }
+}
+filtered_mods_mem
+
+trait_bicor_dormancy <- as.data.frame(moduleTraitBicor2[,4])
+trait_pval_dormancy  <- as.data.frame(moduleTraitBicor.data2$p[,4])
+filtered_mods_df <- data.frame(filtered_mods_mem)
+for (i in 1:length(filtered_mods_mem)){
+  #whichmodule = substring(colnames(datKME2)[i], 4);
+  MEname <- paste("ME", filtered_mods_mem[i], sep="", collapse="")
+  #restrict2 = (moduleColors2==whichmodule);
+  filtered_mods_df$avg_gene_sig[i] <- Mod_Sig_dorm[which(names(Mod_Sig_dorm)==filtered_mods_mem[i])]
+  filtered_mods_df$mod_corr[i]       <-
+    trait_bicor_dormancy[which(MEname==rownames(trait_bicor_dormancy)),1]
+  filtered_mods_df$mod_corr_pvalue[i]   <-      
+    trait_pval_dormancy[which(MEname==rownames(trait_pval_dormancy)),1]
+}
+#order by gene signif
+filtered_mods_df <- filtered_mods_df[order(-filtered_mods_df$avg_gene_sig),]
+View(filtered_mods_df)
+head(filtered_mods_df)
+```
+
+
+To look at functional category for each gene in a module, perhaps use Malone's functional category list that Sharon used for tnseq? classify by 'fxnal anno' column in 'malone_orthologs.csv'
+
+This won't show me whether or not something is enriched in a certain pathway/functional category.
+
+Start with 'lightcyan1' which is strong negative correlation with dormancy with high avg gene significance.
+
+```{r fxn_cat_module_genes}
+# look at highly correlated/connected module for dormancy and see if genes have common functional annotations using Malone's categories
+
+malone_csv <- read.csv("~/tn_seq/data/Malone_orthologs.csv", stringsAsFactors = F, skip=2)
+head(malone_csv)
+colnames(malone_csv)
+malone_csv[1:10,5]
+# columns 'Rv.tag', 'Annotation', 'Fxnal.anno' most useful
+
+# get filtered genes from light cyan module
+
+# filtering genes for condition gene significance (how correlated gene is to trait) and module membership (how correlated gene is to module)
+
+FilterGenes= abs(GS_dorm)> .2 & abs(datKME2$MM.lightcyan1)>.8 
+table(FilterGenes)
+# why does only one gene meet this criteria? Very few genes in module?
+s[which(s$moduleColors2=="lightcyan1"),]
+# only has 33 genes
+
+# try with 'floralwhite'
+FilterGenes <- abs(GS_dorm) > .2 & abs(datKME2$MM.floralwhite) > .8
+table(FilterGenes)
+# 69
+s[which(s$moduleColors2=="floralwhite"),]
+#floral white only has 32 genes in it! genes are assigned modules based on module membership in other modules as well. So maybe this isn't best way to filter genes. 
+
+#just get list of genes from 'lightcyan1'
+
+# get list of gene names, filter for CDS
+genes_lightcyan1<-colnames(analysis[,moduleColors2=="lightcyan1"])
+genes_lightcyan1<-genes_lightcyan1[grep("gene", genes_lightcyan1, value=F)] 
+genes_lightcyan1<-substring(genes_lightcyan1, 6)
+
+# assign annotation and func annot from ortholog file
+lightcyan1_gene_df <- data.frame(matrix("NA", nrow=length(genes_lightcyan1), ncol=3))
+lightcyan1_gene_df[,1] <- genes_lightcyan1
+lightcyan1_gene_df[,2] <- malone_csv[match(lightcyan1_gene_df[,1],malone_csv[,2]),4]
+lightcyan1_gene_df[,3] <- malone_csv[match(lightcyan1_gene_df[,1],malone_csv[,2]),6]
+colnames(lightcyan1_gene_df) <- c("ID", "gene_name", "funct_annotation")
+View(lightcyan1_gene_df)
+
+# for 'floralwhite'
+genes_floralwhite <- colnames(analysis[,moduleColors2=="floralwhite"])
+genes_floralwhite <- genes_floralwhite[grep("gene", genes_floralwhite, value=F)]
+genes_floralwhite<-substring(genes_floralwhite, 6)
+floralwhite_gene_df <- data.frame(matrix("NA", nrow=length(genes_floralwhite), ncol=3))
+floralwhite_gene_df[,1] <-genes_floralwhite
+floralwhite_gene_df[,2] <- malone_csv[match(floralwhite_gene_df[,1],malone_csv[,2]),5]
+floralwhite_gene_df[,3] <- malone_csv[match(floralwhite_gene_df[,1],malone_csv[,2]),6]
+colnames(floralwhite_gene_df) <- c("ID", "annotation", "funct_annotation")
+View(floralwhite_gene_df)
+
+
+```
+

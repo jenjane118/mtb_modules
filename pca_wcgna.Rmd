@@ -21,7 +21,7 @@ setwd("~/git/mtb_modules")
         library(sva)
         #BiocManager::install("limma")
         library(limma)
-        #BiocManager::install("WGCNA")
+        BiocManager::install("WGCNA")
         library(WGCNA)
         #install.packages("devtools")
         #devtools::install_github("hadley/devtools",force=TRUE)
@@ -600,8 +600,8 @@ dim(analysis)
 save(analysis, file = "~/git/mtb_modules/datExpr.RData")
 
 #defining trait data with control conditions 
-#control_conditions.df<-
-#               read.csv("~/git/mtb_modules/control_conditions_df.txt",                 )
+control_conditions.df<-
+               read.csv("~/git/mtb_modules/control_conditions_df.txt",                 )
 
 traitData <- control_conditions.df
 dim(traitData)
@@ -617,6 +617,7 @@ datTraits[is.na(datTraits)] <- 0
 head(datTraits)
 # save for further analysis
 save(datTraits, file="~/git/mtb_modules/datTraits.RData")
+
 #head(datTraits)
 ```
 
@@ -699,17 +700,36 @@ net = blockwiseModules(analysis,
                       verbose = 3)
 summary(net)
 
+#minmodule size = 25, mergeCutHeight 0.15
+net2 <-blockwiseModules(analysis, 
+                      maxBlockSize = 6500,     
+                      corType = "bicor", 
+                      networkType = "signed",
+                      power = 14, 
+                      TOMType = "signed", 
+                      minModuleSize = 25,
+                      reassignThreshold = 0, 
+                      mergeCutHeight = 0.20, 
+                      deepSplit = 2,
+                      numericLabels = TRUE,
+                      saveTOMs = TRUE,
+                      saveTOMFileBase = "testTOM", 
+                      pamRespectsDendro = FALSE,
+                      verbose = 3)
+summary(net2)
+# 48 modules
+
 #how many modules identified and what colours are
 module.table <- table(net$colors)  #this creates a 'contingency table'
+module.table2 <- table(net2$colors)
 
 write.csv(table(net$colors), file = "clusteringblocks.csv")
-
+write.csv(table(net2$colors), file = "clust_blocks_net2.csv")
 # display dendrogram 
 png("power14_split2_minmod20_cuth15.png", width=1000, height=650)
 #sizeGrWindow(12, 9)
 #convert labels to colours for plotting
 mergedColors <- labels2colors(net$colors)
-
 #plot dendrogram and module colors underneath
 plotDendroAndColors(net$dendrograms[[1]], 
                     mergedColors[net$blockGenes[[1]]],
@@ -717,25 +737,38 @@ plotDendroAndColors(net$dendrograms[[1]],
                     dendroLabels = FALSE, hang = 0.03,
                     addGuide = TRUE, guideHang = 0.05)
 dev.off()
+
+png("power14_split2_minmod25_cut20.png", width=1000, height=650)
+mergedColors2 <- labels2colors(net2$colors)
+plotDendroAndColors(net2$dendrograms[[1]],
+                     mergedColors2[net2$blockGenes[[1]]],
+                     "Module colors",
+                     dendroLabels = F, hang = 0.03,
+                     addGuide = T, guideHang = 0.05)
+dev.off()
+
 #save the module assignment and module eigengene info for subsequent analysis
 # each gene assigned a module number
 moduleLabels = net$colors
+moduleLabels2 <- net2$colors
 #each gene assigned a color
 moduleColors = labels2colors(net$colors)
-
+moduleColors2 <- labels2colors(net2$colors)
 # module eigengenes
 MEs = net$MEs;
+MEs2 <- net2$MEs
 #MEs
 
 #save dendrogram data (hclust)
 geneTree = net$dendrograms[[1]];
-
+geneTree2<-net2$dendrograms[[1]]
 # this saves info as R object
 #save(MEs, moduleLabels, moduleColors, geneTree, 
 #     file = "~/git/mtb_modules/TB_modules_network_construction.RData")
-
+save(MEs2, moduleLabels2, moduleColors2, geneTree2,
+     file= "~/git/mtb_modules/TB_mod_net2_construction.RData")
 # to re-load modules data (MEs, etc)
-load("~/git/mtb_modules/TB_modules_network_construction.RData")
+load("~/git/mtb_modules/TB_mod_net2_construction.RData")
 
 
 table(moduleColors)
@@ -745,6 +778,12 @@ s<-as.data.frame(table(moduleColors), row.names = NULL,
 s<-s[order(s$Freq, decreasing = T),]
 head(s)
 # turquoise, blue, brown, yellow, green, red are largest modules
+
+s<-as.data.frame(table(moduleColors2), row.names = NULL, 
+                 responseName = "Freq", stringsAsFactors = T,
+                 sep = "", base = list(LETTERS))
+s<-s[order(s$Freq, decreasing = T),]
+# same order of largest modules
 
 write.csv(table(moduleColors), file = "clusteringblocks2.csv")
 
@@ -778,21 +817,33 @@ The eigengene dendrogram and heatmap identify groups of correlated eigengenes te
 
 
 ```{r adjacency_heatmap}
+load("~/git/mtb_modules/datExpr.RData")
+
 #define numbers of genes and samples
 nGenes = ncol(analysis)
 nSamples = nrow(analysis)
 #recalculate MEs with color labels
-MEs0 = moduleEigengenes(analysis, moduleColors)$eigengenes
+#MEs0 = moduleEigengenes(analysis, moduleColors)$eigengenes
+MEs02 <- moduleEigengenes(analysis, moduleColors2)$eigengenes
 #MEs0
-MEs = orderMEs(MEs0)
-#head(MEs)
+#MEs = orderMEs(MEs0)
+MEs2 <- orderMEs(MEs02)
 
 # Plot the heatmap matrix 
-par(cex = 1.0)
-plotEigengeneNetworks(MEs, "Eigengene adjacency heatmap", 
+#par(cex = 1.0)
+#plotEigengeneNetworks(MEs, "Eigengene adjacency heatmap", 
+                      # marHeatmap = c(3,4,2,2),
+                      # plotDendrograms = FALSE, 
+                      # xLabelsAngle = 90)
+
+#plot for net2
+
+par(cex = 0.5)
+plotEigengeneNetworks(MEs2, "Eigengene adjancency heatmap",
                       marHeatmap = c(3,4,2,2),
-                      plotDendrograms = FALSE, 
+                      plotDendrograms = F,
                       xLabelsAngle = 90)
+
 
 ```
 
@@ -800,10 +851,10 @@ plotEigengeneNetworks(MEs, "Eigengene adjacency heatmap",
 
 ```{r}
 # look at pairwise observations (use="p", method="pearson", default)
-sum_conn<-signif(cor(MEs, use="p"), 2)
+sum_conn<-signif(cor(MEs2, use="p"), 2)
 #sum_conn[1:10,]
 # use this to cluster the eigengenes
-dissimME=(1-t(cor(MEs, method="p")))/2 
+dissimME=(1-t(cor(MEs2, method="p")))/2 
 hclustdatME=hclust(as.dist(dissimME), method="average" )
 # Plot the eigengene dendrogram
 png("~/git/mtb_modules/clust_eigengenes.png", height = 800, width=1200)
@@ -823,8 +874,8 @@ png("mod_mem_heatmaps.png", width=1000, height=3000)
 #sizeGrWindow(8,9)
 par(mfrow=c(5,1), mar=c(1, 2, 4, 1))
 for (i in 1:5){
-  which.module=s$moduleColors[i];
-  plotMat(t(scale(analysis[,moduleColors==which.module ])),
+  which.module=s$moduleColors2[i];
+  plotMat(t(scale(analysis[,moduleColors2==which.module ])),
         nrgcols=63,
         rlabels=T,
         clabels=T,
@@ -881,9 +932,9 @@ trait_df$lysine[3]<-1
 trait_df$dormancy[c(4,5,6, 45,46, 51, 52)]<-1  #hypoxia and dormancy
 trait_df$reaeration_1to2[c(7:12)]<-1
 trait_df$exponential[c(13:18, 37,38, 41,42)]<-1 
-trait_df$butyrate[c(19:24)]<-1
-trait_df$butyrate_plus_glu[c(22:24)]<-1
-trait_df$glucose[c(22:24, 25:27)]<-1
+trait_df$butyrate[c(19:20)]<-1
+trait_df$butyrate_plus_glu[c(19:27)]<-1
+trait_df$glucose[c(25:27)]<-1
 trait_df$hi_iron[c(28:30)]<-1
 #trait_df$low_iron_1day[c(31:33)]<-1
 #trait_df$low_iron_1week[c(34:36)]<-1
@@ -896,7 +947,7 @@ trait_df$cholesterol[c(47:52)]<-1 #also 51 and 52 in dormancy
 #trait_df$chol_stat[c(49,50)]<-1
 #trait_df$chol_dorm[c(51,52)]<-1
 trait_df$stationary[c(43,44,49,50)]<-1   # stat cholesterol,dextrose
-View(trait_df)
+#View(trait_df)
 ```
 
 ```{r module_significance}
@@ -1000,20 +1051,6 @@ int_chol
 #MEplum1          -0.44 1.191917e-03
 #MEsienna3        -0.47 4.000961e-04
 
-# 2 measure of module significance as avg gene significance
-# what is datExp?
-y = trait_df$hypoxia
-GS1=as.numeric(cor(y,analysis, use="p"))
-GeneSignificance=abs(GS1)
-
-# Next module significance is defined as average gene significance.
-ModuleSignificance=tapply(GeneSignificance, moduleColors, mean, na.rm=T)
-
-#Plot gene significance against module membership:
-sizeGrWindow(8,7)
-par(mfrow = c(1,1))
-plotModuleSignificance(GeneSignificance,moduleColors, "Gene significance across modules, hypoxia")
-
 ```
 
 Maybe should use different function for this: bicorAndPvalue instead of this cor test that finds Pearson correlations.This is what Yen-Yi did.
@@ -1023,97 +1060,282 @@ Maybe should use different function for this: bicorAndPvalue instead of this cor
 ```{r bicor_method}
 #construction of biweight midcorrelation and fdr corrected significance of module eigengenes and experimental conditions
 # robustY = F because using binary data for this trait
-moduleTraitBicor.data = bicorAndPvalue(MEs, 
-                              trait_df, 
-                              maxPOutliers=0.05, 
-                              robustY = FALSE)
-moduleTraitBicor <- moduleTraitBicor.data$bicor
-moduleTraitBicorPvalue = as.data.frame(moduleTraitBicor.data$p)
+# moduleTraitBicor.data = bicorAndPvalue(MEs, 
+#                               trait_df, 
+#                               maxPOutliers=0.05, 
+#                               robustY = FALSE)
+# moduleTraitBicor <- moduleTraitBicor.data$bicor
+# moduleTraitBicorPvalue = as.data.frame(moduleTraitBicor.data$p)
+
+moduleTraitBicor.data2 <- bicorAndPvalue(MEs2,
+                                trait_df,
+                                maxPOutliers=0.05,
+                                robustY = F)
+moduleTraitBicor2 <- moduleTraitBicor.data2$bicor
+moduleTraitBicorPvalue2 <- as.data.frame(moduleTraitBicor.data2$p)
+
+
 
 # fdr for multiple testing applied for each trait
+# traitNames<-colnames(trait_df)
+# modNames <- substring(colnames(MEs),3)
+# p_adj_bicor<-data.frame(matrix(0, nrow=length(modNames),
+#               ncol=length(traitNames)), 
+#               row.names = modNames)
+# colnames(p_adj_bicor)<-traitNames
+# traitNames == colnames(moduleTraitBicorPvalue)
+# for (i in 1:length(traitNames)){
+#     p_adj_bicor[,i]<-p.adjust(moduleTraitBicorPvalue[,i],method="fdr")
+#         }
+# #View(p_adj_bicor)
+# # convert df to matrix
+# p_adj_moduleTraitBicorPvalue <- as.matrix(p_adj_bicor)
+
+# for net2
 traitNames<-colnames(trait_df)
-modNames <- substring(colnames(MEs),3)
-p_adj_bicor<-data.frame(matrix(0, nrow=length(modNames),
+modNames2 <- substring(colnames(MEs2),3)
+p_adj_bicor2<-data.frame(matrix(0, nrow=length(modNames2),
               ncol=length(traitNames)), 
-              row.names = modNames)
-colnames(p_adj_bicor)<-traitNames
-traitNames == colnames(moduleTraitBicorPvalue)
+              row.names = modNames2)
+colnames(p_adj_bicor2)<-traitNames
+traitNames == colnames(moduleTraitBicorPvalue2)
 for (i in 1:length(traitNames)){
-    p_adj_bicor[,i]<-p.adjust(moduleTraitBicorPvalue[,i],method="fdr")
+    p_adj_bicor2[,i]<-p.adjust(moduleTraitBicorPvalue2[,i],method="fdr")
         }
-#View(p_adj_bicor)
-# convert df to matrix
-p_adj_moduleTraitBicorPvalue <- as.matrix(p_adj_bicor)
+p_adj_moduleTraitBicorPvalue2 <- as.matrix(p_adj_bicor2)
+
 
 # make heatmap of module/trait correlations
 # this includes bicor correlation calc / adjusted p-value
-textMatrix <- paste(signif(moduleTraitBicor, 2), 
+# textMatrix <- paste(signif(moduleTraitBicor, 2), 
+#                              "\n(",
+#                              signif(p_adj_moduleTraitBicorPvalue, 1), 
+#                              ")", 
+#                              sep = "")
+# View(textMatrix)
+# dim(textMatrix) <- dim(moduleTraitBicor)
+# #sizeGrWindow(10,6)
+# #par(mar = c(8, 12, 2, 2))
+# png("labeled_heatmap.png", width = 1920, height = 1920)
+# #heatmap plot 
+# par(mar = c(8, 12, 2, 2))
+#         labeledHeatmap(Matrix <- moduleTraitBicor,
+#                        xLabels = colnames(trait_df),
+#                        yLabels = colnames(MEs),
+#                        ySymbols = colnames(MEs),
+#                        colorLabels = TRUE,
+#                        colors = blueWhiteRed(50),
+#                        textMatrix = textMatrix,
+#                        setStdMargins = FALSE,
+#                        cex.text = 1,
+#                        cex.lab.x = 1,
+#                        cex.lab.y = 1,
+#                        zlim = c(-1,1),
+#                        main = paste("Module-trait relationships FDR adjusted p-values"))
+# dev.off()
+# 
+# # for net2
+textMatrix2 <- paste(signif(moduleTraitBicor2, 2),
                              "\n(",
-                             signif(p_adj_moduleTraitBicorPvalue, 1), 
-                             ")", 
+                             signif(p_adj_moduleTraitBicorPvalue2, 1),
+                             ")",
                              sep = "")
-View(textMatrix)
-dim(textMatrix) <- dim(moduleTraitBicor)
-#sizeGrWindow(10,6)
-#par(mar = c(8, 12, 2, 2))
-png("labeled_heatmap.png", width = 1920, height = 1920)
-#heatmap plot 
-        labeledHeatmap(Matrix <- moduleTraitBicor,
+dim(textMatrix2) <- dim(moduleTraitBicor2)
+# 
+png("labeled_heatmap_net2.png", width = 2400, height = 1920)
+#heatmap plot
+par(mar = c(8, 12, 2, 2))
+        labeledHeatmap(Matrix <- moduleTraitBicor2,
                        xLabels = colnames(trait_df),
-                       yLabels = colnames(MEs),
-                       ySymbols = colnames(MEs),
+                       yLabels = colnames(MEs2),
+                       ySymbols = colnames(MEs2),
                        colorLabels = TRUE,
                        colors = blueWhiteRed(50),
-                       textMatrix = textMatrix,
+                       textMatrix = textMatrix2,
                        setStdMargins = FALSE,
                        cex.text = 1,
                        cex.lab.x = 1,
-                       cex.lab.y = 1,
+                       cex.lab.y = 0.75,
                        zlim = c(-1,1),
-                       main = paste("Module-trait relationships FDR adjusted p-values"))
+                       main = paste("Module-trait relationships FDR adjusted p-values: net2"))
 dev.off()
+
+
 ```
 ![heatmap trait/module correlations and p-values](~/git/mtb_modules/labeled_heatmap.png)
 
+
+![heatmap trait/module correlations/p-values net2](~/git/mtb_modules/labeled_heatmap_net2.png)
+
+
+
 Combining cholesterol samples gives some more modules with significant correlation. Also, combining low iron and dormancy. 3 minimal media with specific amino acids all correlating together. butyrate/glucose no real change with combining-still not informative.
 
-There are some interesting modules that are upregulated in dormancy and downregulated in exponential.
+There are some interesting modules that are upregulated in dormancy and downregulated in exponential. also low iron vs exponential and stationary. cholesterol vs exponential 
+
+Maybe calculate gene significance for cholesterol, dormancy and exponential, low iron?
+
+see what it looks like with fewer modules?
+I think this looks better--but actually has fewer signif. correlations overall. Perhaps, focus on certain modules? how many modules are significant?
+
+
+```{r compare_bicor}
+length(moduleTraitBicor)
+#882
+sum(abs(moduleTraitBicor) >=0.4)/882
+#0.122
+sum(p_adj_moduleTraitBicorPvalue<=0.05)/882
+#0.204
+sum(abs(moduleTraitBicor2) >= 0.4)/length(moduleTraitBicor2)
+#0.125
+sum(p_adj_moduleTraitBicorPvalue2<=0.05)/length(moduleTraitBicor2)
+#0.21
+
+```
 
 Now how do we look at what genes are members of particular modules? How to determine if they are functionally related?
 I am more interested in describing the relationships between genes in one module.
 
 [determining membership in important modules](https://horvath.genetics.ucla.edu/html/CoexpressionNetwork/Rpackages/WGCNA/Tutorials/Simulated-07-Membership.pdf)
 
-```{r}
+>One can also define a measure of module significance as the average gene significance of all genes in the module. When gene significance is defined as the correlation of gene expression profiles with an external trait y, this measure tends to be highly related to the correlation between the module eigengene and y.
+
+
+```{r gene_significance, warning=FALSE}
+
+y = trait_df$dormancy
+GS_dorm=as.numeric(bicor(y,analysis, maxPOutliers=0.05, 
+                              robustY = FALSE, use="p"))
+# We use the absolute value for defining a correlation based gene significance measure
+dorm_GS=abs(GS_dorm)
+# Next 'module significance' is defined as average gene significance.
+Mod_Sig_dorm=tapply(dorm_GS, moduleColors2, mean, na.rm=T)
+
+y = trait_df$exponential
+GS_expo <- as.numeric(bicor(y,analysis, maxPOutliers=0.05, 
+                              robustY = FALSE,use="p", pearsonFallback = "i"))
+expo_GS=abs(GS_expo)
+Mod_Sig_expo=tapply(expo_GS, moduleColors2, mean, na.rm=T)
+
+y= trait_df$cholesterol
+GS_chol<-as.numeric(bicor(y,analysis, maxPOutliers=0.05, 
+                              robustY = FALSE, use="p", pearsonFallback = "i"))
+chol_GS <- abs(GS_chol)
+Mod_Sig_chol<-tapply(chol_GS, moduleColors2, mean, na.rm=T)
+
+y = trait_df$low_iron
+GS_iron<-as.numeric(bicor(y, analysis, maxPOutliers=0.05, 
+                              robustY = FALSE, use="p", pearsonFallback = "i"))
+iron_GS<-abs(GS_iron)
+Mod_Sig_iron <- tapply(iron_GS, moduleColors2, mean, na.rm=T)
+
+y = trait_df$stationary
+GS_stat <- as.numeric(bicor(y, analysis, maxPOutliers=0.05, 
+                              robustY = FALSE, use="p", pearsonFallback = "i"))
+stat_GS <- abs(GS_stat)
+Mod_Sig_stat <- tapply(stat_GS, moduleColors2, mean, na.rm=T)
+
+# make dataframe of module/trait significance (based on mean GS)
+
+module_sig <- data.frame(Mod_Sig_dorm, Mod_Sig_chol, Mod_Sig_expo, Mod_Sig_iron, Mod_Sig_stat)
+View(module_sig)
+
+#Plot gene significance against module membership:
+#he function calculates the module significance for each module as the average gene
+#significance of the genes within the module (like Mod_Sig_<condition> above). The result is plotted in a barplot or boxplot form. Each bar or box is labeled by the corresponding module color.
+
+png("gene_significance_plots.png", width = 2800, height = 1400)
+#sizeGrWindow(8,7)
+par(mfrow=c(5,1), mar=c(3, 2, 4, 1))
+#par(mfrow = c(1,1))
+plotModuleSignificance(dorm_GS,moduleColors2, main = "Dormancy gene signif",
+                       cex.names=.8, boxplot = T)
+plotModuleSignificance(expo_GS,moduleColors2, main ="Exponential gene signif",
+                       cex.names=.8, boxplot=T)
+plotModuleSignificance(chol_GS,moduleColors2, main = "Cholesterol gene signif",
+                       cex.names=.8, boxplot=T)
+plotModuleSignificance(iron_GS,moduleColors2, main = "Low iron gene signif",
+                       cex.names=.8, boxplot=T)
+plotModuleSignificance(stat_GS,moduleColors2, main = "Stationary gene signif",
+                       cex.names=.8, boxplot=T)
+dev.off()
+```
+![gene significance against module membership](~/git/mtb_modules/gene_significance_plots.png)
+
+Intramodular connectivity:  For each node (gene), the function sums adjacency entries (excluding the diagonal) to other nodes within the same module. 
+
+```{r intramodular_conn}
 #calculate intramodular connectivity ('degree')
 #whole network connectivity = kTotal
 #within module connectivity = kwithin
 #kOut=kTotal-kWithin
 #kDiff=kIn-kOut=2*kIn-kTotal
 
-ADJ1=abs(cor(analysis, use="p"))^14     #they use 6 in tutorial which is same as soft power threshold they use. should i use softpower threshold I used? (14)
-Alldegrees1=intramodularConnectivity(ADJ1, moduleColors)
+# create adjacency matrix from expression data
+#Optionally, the connectivities can be scaled by the maximum connectivy in each module.
+ADJ1=abs(bicor(analysis, use="p",maxPOutliers=0.05, 
+                              robustY = FALSE))^6   #they use 6 in tutorial which is same as soft power threshold they use. should i use softpower threshold I used? (14)
+
+# the function sums adjacency entries (excluding the diagonal) to other nodes within the same module
+# returns a vector of intramodular connectivities
+Alldegrees1=intramodularConnectivity(ADJ1, moduleColors2)
 head(Alldegrees1)
 
-#plot the gene significance against intramodular connectivity
-# but I don't know how to decide gene significance? by condition?
-
-colorlevels=unique(moduleColors)
+#plot the gene significance of dormancy against intramodular connectivity
+# Irrespective of the specified correlation function, the p-value is always calculated for pearson correlation.
+colorlevels=unique(moduleColors2)
+#plot 6 modules at at time
 sizeGrWindow(9,6) 
-par(mfrow=c(2,as.integer(0.5+length(colorlevels)/2))) 
-par(mar = c(4,5,3,1))
-for (i in c(1:length(colorlevels)))
+#png("~/git/mtb_modules/intramodule_conn_plot.png", width = 1200, height = 800)
+par(mfrow=c(2,as.integer(0.5+6/2)))
+par(mar = c(3,4,2,0.5))
+for (i in c(1:48))
 {
+  #png(paste("~/git/mtb_modules/intramodule_conn_plot", i,".png", sep=""))
   whichmodule=colorlevels[[i]];
-  restrict1 = (moduleColors==whichmodule);
+  restrict1 = (moduleColors2==whichmodule);
   verboseScatterplot(Alldegrees1$kWithin[restrict1],
-                   GeneSignificance[restrict1],
-                   col=moduleColors[restrict1],
+                  dorm_GS[restrict1],
+                  corFnc = "bicor",
+                   col=moduleColors2[restrict1],
                    main=whichmodule,
                    xlab = "Connectivity", ylab = "Gene Significance", abline = TRUE)
+  #dev.off()
 }
-
+#dev.off()
 ```
+For dormancy: blue, brown, black, green, magenta, lightcyan1, steelblue, bisque4? intramodular hub genes show the highest gene significance/connectivity. Blue actually looks like a lot of genes not well-connected--plot looks quite different from plot of KME further down.
+
+Cholesterol: weaker correlations--same as above (blue, brown, black, green, magenta), but these are big modules and have weaker correlation with this condition. White, violet and darkred are more strongly negatively correlated. 
+
+Correlations were stronger when I switched to bicor method vs just 'cor' (Pearson?)
+
+Create plot to explain relationship between modules (heatmap) and corresponding module eigengene (barplot)
+
+x axis is samples, y axis is genes in the module, barplot is eigengene expression in module
+
+```{r module_heatmap_and_eigengene_for_condition}
+dorm_mods <- c("blue", "brown", "black", "green", "magenta", "lightcyan", "steelblue")
+
+which.module <- dorm_mods
+for (i in 1:length(which.module)){
+  sizeGrWindow(8,7);
+  ME=MEs2[, paste("ME",which.module[i], sep="")] 
+  par(mfrow=c(2,1), 
+  mar=c(0.3, 5.5, 3, 2)) 
+  plotMat(t(scale(analysis[,moduleColors2==which.module[i] ])),
+        nrgcols=30,
+        rlabels=F,
+        rcols=which.module[i],
+        main=which.module[i], 
+        cex.main=2) 
+  par(mar=c(5, 4.2, 0, 0.7))
+  barplot(ME, col=which.module[i], main="", 
+        cex.main=2, ylab="eigengene expression",
+        xlab="array sample")
+}
+```
+
 
 define a module eigengene-based connectivity measure for each gene as the correlation between a the gene expression and the module eigengene
 
@@ -1121,14 +1343,379 @@ define a module eigengene-based connectivity measure for each gene as the correl
 
 xi is the gene expression profile of gene i and MEbrown is the module eigengene
 
+>Signed eigengene-based connectivity of a gene in a module is defined as the correlation of the gene with the corresponding module eigengene
+
+>It often happens that one gene (probeset) has a high kME to several modules. Since modules are based on TOM, not on the adjacency (correlations), they provide a slightly different picture of the data which can change the apparent module membership, especially if the modules have strongly correlated eigengenes. TOM also often seems to "prefer" larger modules over small ones. Which one should you settle on? I personally prefer the kME as measured by bicor, but I often settle on simple binary module membership as determined by tree cutting. The point is that the most important genes are those that are intramodular hub genes, and the module to which the hubs belong is usually pretty clear. From: https://support.bioconductor.org/p/72377/
+
 ```{r gene_expr_me_cor}
+# signed eigengene-based connectivity = module membership
+
 # create dataframe with module membership values (MM) for each module
 # values are module membership for each gene in each module
 
-datKME=signedKME(analysis, MEs, outputColumnName = "MM.")
-head(datKME)
+# datKME=signedKME(analysis, MEs, outputColumnName = "MM.", corFnc="bicor")
+# head(datKME)
+# dim(datKME)
+# sum(datKME[,] > 0.5)/(nrow(datKME)*ncol(datKME))
+
+datKME2=signedKME(analysis, MEs2, outputColumnName = "MM.", corFnc="bicor")
+dim(datKME2)
+sum(datKME2[,] >0.5)/(nrow(datKME2)*ncol(datKME2))
+#0.09632565
+head(datKME2)
+
+#slightly better connected modules in net2?
+```
+How to get lists of genes in each module?
+
+```{r}
+genes_blue<-colnames(analysis[,moduleColors2=="blue"])
+length(genes_blue)
+#578
+
+# can also filter these below to get gene names
 
 ```
 
 
+THis is a lot of genes and a lot of modules assoc with dormancy. Either take only the top few modules? maybe chase some really characteristic genes to what module they associate with and choose that one (like dosR)
+
+Filter genes for high intramodular connectivity (and high gene significance). filter for intramodule connectivity is how modules are created anyway (though some difference in cutoff between using signedKME and tree cutting). Don't worry about p-value? p-value calculated for correlation of module with trait. intramodular connectivity measure of how connected particular gene is to module, and gene significance is how correlated gene is to trait
+
+```{r filter_genes}
+#kMEbrown(i) = cor(x(i), MEbrown)
+# get module correlation and pvalue for specific gene in module
+kMEroyalblue_Rv0040c = bicorAndPvalue(analysis[,"gene:Rv0040c"], MEs2$MEroyalblue)
+kMEroyalblue_Rv0040c
+
+# filtering for condition gene significance and module membership
+
+FilterGenes= abs(GS_chol)> .2 & abs(datKME2$MM.blue)>.8 
+table(FilterGenes)
+# get list of gene names
+KME_filtered_blue<-dimnames(data.frame(analysis))[[2]][FilterGenes]
+head(KME_filtered_blue)
+length(KME_filtered_blue)
+#364
+
+# scatter plot of genes (GS vs module connectivity) using KME (dormancy condition)
+colorlevels=unique(moduleColors2)
+colorlevels[i]
+#plot 6 modules at at time
+sizeGrWindow(9,6) 
+#png("~/git/mtb_modules/intramodule_conn_plot.png", width = 1200, height = 800)
+par(mfrow=c(2,as.integer(0.5+6/2)))
+par(mar = c(3,4,2,0.5))
+for (i in c(1:48)){
+  whichmodule = substring(colnames(datKME2)[i], 4);
+  #png(paste("~/git/mtb_modules/intramodule_conn_plot", whichmodule,".png", sep=""))
+  restrict1 = (moduleColors2==whichmodule);
+  verboseScatterplot(datKME2[,i][restrict1],
+                   GS_dorm[restrict1],
+                   corFnc = "bicor",
+                   col=moduleColors2[restrict1],
+                   main=whichmodule,
+                   xlab = "Connectivity", 
+                   ylab = "Gene Significance for dormancy", 
+                   abline = TRUE)
+#dev.off()
+}
+
+```
+These plots not as convincing as earlier plot using adjMat to calculate intramodular connectivity? Changed to 'bicor' in scatterplot.
+
+
+Install GO.db and annotation.dbi to use for functional analysis of module genes
+
+There doesn't seem to be an organism-specific annotation package for TB, so I may have to use web service. Panther download doesn't include Mtb annotation package (only uses ones in bioconductor). will need to export files and use web service.
+
+Plan:
+1) get list of genes from modules of interest (make dataframe to evaluate module membership and significance of each module)
+  a) divide CDS from predicted UTRs and sRNAs
+  b) match UTRs with CDS
+  c) check ensembl and uniprot for annotation of CDS
+  d) use Panther to determine GOs for annotated genes
+2) use list of known/annotated sRNAs and determine module membership of these
+    -are they associated with genes of any particular gene pathway?
+3) find out if any of the interesting modules contain predicted sRNAs
+
+
+Determine modules of interest. These depend on trait/condition. Hypoxia, low iron, stationary and cholesterol seem to show the most signif. correlations (esp hypoxia and low iron).
+
+```{r module_gene_summary_df}
+#constructing a data frame holding information for the gene ID, module colours, GS, GS p-value, MM and MM p-values; modules are ordered by significance for weight
+        geneInfo0.b = data.frame(gene_ID = names(analysis),
+                                 moduleColor = moduleColors2,
+                                 geneTraitSignificance.b,
+                                 GSPvalue.b)
+        modOrder.b = order(-abs(bicor(MEs, hypoxic.latent)))
+        #adding module membership information in the chosen order
+        for (mod in 1:ncol(geneModuleMembership.b)){
+          oldNames = names(geneInfo0.b)
+          geneInfo0.b = data.frame(geneInfo0.b, geneModuleMembership.b[, modOrder.b[mod]],
+                                   MMPvalue.b[, modOrder.b[mod]])
+          names(geneInfo0.b) = c(oldNames, paste("MM.", modNames[modOrder.b[mod]], sep=""),
+                                 paste("p.MM.", modNames[modOrder.b[mod]], sep=""))
+        }
+        #order genes in the geneInfo variable by module color, then by geneTraitSignificance
+        geneOrder.b= order(geneInfo0.b$moduleColor, -abs(geneInfo0.b$GS.Hypoxic.Latent));
+        geneInfo.b = geneInfo0.b[geneOrder.b, ]
+        write.csv(geneInfo.b, file = "geneInfo.b.csv")
+
+```
+
+
+```{r dataframe_module_mem}
+
+#1) make dataframe for each condition rows:module colours, cols: Module signif (ME/trait), MS p-val, MM, MM p-value (recalculate?), #genes, #filtered genes
+
+#2) make list of filtered genes for each module/condition
+
+#condition dataframes
+trait_col = 4
+trait_module_df <- data.frame(matrix(0, nrow=48, ncol=6))
+colnames(trait_module_df) <- c("MS", "MS_pval", "Mod_con", "Mcon_pval", "no_genes", "no_filtered_genes")
+rownames(trait_module_df) <- modNames2
+
+```
+
+
+Check module of specific genes (Rv1456c)
+
+```{r}
+#head(datKME2)
+Rv1456c_mods<-datKME2["gene:Rv1456c", abs(datKME2["gene:Rv1456c", ])> 0.5]
+Rv1456c_mods  #cyan module is highest mod membership
+# midnight blue also nearly at 0.8
+
+# get module correlation and pvalue for specific gene in module
+kMEmidnightblue_Rv1456c = bicorAndPvalue(analysis[,"gene:Rv1456c"], MEs2$MEmidnightblue)
+kMEmidnightblue_Rv1456c$bicor 
+kMEmidnightblue_Rv1456c$p
+
+#list genes in cyan module with membership > 0.8?
+x <- (abs(datKME2$MM.midnightblue)> 0.7)
+y<-datKME2$MM.midnightblue[x]
+length(y)
+
+# see how many genes related to low iron in cyan
+midnightblue_filtered<- abs(GS_iron)> .2 &  abs(datKME2$MM.midnightblue) > 0.7 
+table(midnightblue_filtered)
+# get list of gene names
+KME_filtered_midnightblue<-dimnames(data.frame(analysis))[[2]][midnightblue_filtered]
+KME_filtered_midnightblue
+# export gene list
+# first select for genes only (not putative ncRNA)
+midnightblue_genes<-KME_filtered_midnightblue[grepl("gene", KME_filtered_midnightblue)]
+# remove 'gene.' substring
+midnightblue_genes<-sub("gene.", "", midnightblue_genes)
+#export to text file
+writeLines(midnightblue_genes, con="~/git/mtb_modules/midnightblue_genes.txt", sep = "\n")
+# all genes incl. non-coding
+writeLines(KME_filtered_midnightblue, con="~/git/mtb_modules/midnightblue_all_genes.txt", sep="\n")
+
+cyan_genes[cyan_genes %in% midnightblue_genes]
+#79 genes in common
+
+```
+
+Submit list to Panther (Pantherdb.org) to get GO terms
+
+chart: Chart tooltips are read as: Category name (Accession): # genes; Percent of gene hit against total # genes; Percent of gene hit against total # Function hits
+
+```{r read_chart}
+cyan_panther_chart<-read.delim("~/git/mtb_modules/cyan_pantherChart.txt", header = F, row.names=1)
+colnames(cyan_panther_chart)<-c( "GO-SLIM_mol_func", "n_genes","gene_hits/total_genes", "gene_hits/function_hits")
+cyan_panther_chart
+
+```
+Both cyan and midnight blue linked to catalytic activity, esp oxidoreductase activity and hydrolase activity. Irilenia checked upstream genes and none are in module.
+
+Check Rv2182c. (fatty acid metabolism)
+
+```{r module_Rv2182c}
+mods_Rv2182c <- datKME2["gene:Rv2182c", abs(datKME2["gene:Rv2182c", ])> 0.8]
+mods_Rv2182c
+
+# yellow, darkred, brown, magenta
+# these are associated with dormancy the most
+# yellow: - correl. in dorm/ + in expoenential
+#darkredF: - correlation in dormancy/ + correlation in exponential
+# magenta: less well + correlated to dormancy (0.4), -0.34 to exponential, 0.38 to cholesterol, -0.31 to low iron
+# brown: 0.56 to dorm/ -0.49 exponential
+
+#look at dark red (and dormancy?)
+gene <- "gene:Rv2182c"
+mod_interest<- MEs2$MEdarkred
+
+# get module correlation and pvalue for specific gene in module
+kMEdarkred_Rv2182c <- bicorAndPvalue(analysis[,"gene:Rv2182c"], MEs2$MEdarkred)
+kMEdarkred_Rv2182c$bicor 
+kMEdarkred_Rv2182c$p
+
+#list genes in darkred module with membership > 0.8?
+x <- (abs(datKME2$MM.darkred)> 0.8)
+y<-datKME2$MM.darkred[x]
+length(y)
+#248
+
+# see how many genes related to dormancy in darkred
+darkred_filtered<- abs(GS_dorm)> .2 &  abs(datKME2$MM.darkred) > 0.8
+table(darkred_filtered)
+# get list of gene names
+KME_filtered_darkred<-dimnames(data.frame(analysis))[[2]][darkred_filtered]
+head(KME_filtered_darkred)
+# export gene list
+# first select for genes only (not putative ncRNA)
+darkred_genes<-KME_filtered_darkred[grepl("gene", KME_filtered_darkred)]
+# remove 'gene.' substring
+darkred_genes<-sub("gene.", "", darkred_genes)
+#export to text file
+writeLines(darkred_genes, con="~/git/mtb_modules/module_genes/darkred_genes.txt", sep = "\n")
+# all genes incl. non-coding
+writeLines(KME_filtered_darkred, con="~/git/mtb_modules/module_genes/darkred_all_genes.txt", sep="\n")
+
+```
+
+Write script to assign utrs to genes.
+
+Name of putative non-coding utr in gff: "putative_UTR.m210813_210891"
+m=minus strand, p=plus strand followed by genome coordinates
+Doesn't specify 3' or 5'
+
+change to 3UTR.RvXXXXx or 5UTR.RvXXXXx
+
+What if is in-between two genes? Choose upstream gene: 3UTR? 
+Could double-check with TSS? If TSS present= 5UTR, no TSS = 3UTR.
+Manually checked UTRs from midnightblue: very few have adjacent genes in module
+
+```{r}
+
+# use genomic ranges to assign gene name to UTRs
+library(GenomicRanges)
+library(rtracklayer)
+library(stringr)
+#BiocManager::install("GenomicFeatures")
+#library(GenomicFeatures)
+#define the GRanges object subject as the collection of genes 
+# read in gff for mtb (use same one as for BH prediction) as genomic ranges object
+mtb_granges<-import("~/git/mtb_modules/ref_seqs/Mtb_h37rv.ASM19595v2_AL123456.3.gff3")
+# filter for type='gene'
+mtb_granges<-mtb_granges[mcols(mtb_granges)$type=="gene"]
+head(mtb_granges)
+KME_filtered_darkred<-readLines("~/git/mtb_modules/module_genes/darkred_all_genes.txt")
+
+#create granges objects for all the utrs in list of module genes
+# parse list of genes for start and end coordinates
+dark_red_UTRs <- KME_filtered_darkred[grepl("UTR", KME_filtered_darkred)]
+utrs <- str_split_fixed(dark_red_UTRs, "UTR.", 2)[,2]
+length(utrs)
+darkred_UTR_df <- data.frame(matrix(0, nrow=length(utrs), ncol=3),stringsAsFactors = F)
+colnames(darkred_UTR_df) <- c("strand", "start", "stop")
+for (i in 1:length(utrs)){
+  strand <- substr(utrs[i], 1, 1)
+  start  <- str_split_fixed(utrs[i], "_", 2)[,1]
+  start  <- sub(".", "", start)
+  stop   <- str_split_fixed(utrs[i], "_", 2)[,2]
+  darkred_UTR_df$strand[i] <- strand
+  darkred_UTR_df$start[i]  <- as.numeric(start)
+  darkred_UTR_df$stop[i]   <- as.numeric(stop)
+}
+darkred_UTR_df$strand <- sub('p', '+', darkred_UTR_df$strand)
+darkred_UTR_df$strand <- sub('m', '-', darkred_UTR_df$strand)
+#View(darkred_UTR_df)
+
+darkred_Granges<-GRanges(seqnames = "AL123456.3",
+                         ranges   = IRanges(darkred_UTR_df$start, end = darkred_UTR_df$stop),
+                         strand   = Rle(strand(darkred_UTR_df$strand))
+)
+
+# nearest(utrs, refseq, select="all", ignore.strand = F) will give me nearest gene feature. But will it look at strand? select=all means returns both nearest features in case of a tie, arbitrary chooses one. (or can use precede() or follow()). Maybe use both when searching whether utr co-locates with gene?
+
+a<-precede(darkred_Granges, mtb_granges,ignore.strand=F)
+# have to coerce to matrix because 'arbitrary' not working otherwise
+b<-as.matrix(a)
+mtb_genes<-as.data.frame(mtb_granges)
+utr_precede_genes<-mtb_genes$gene_id[b]
+
+a<-follow(darkred_Granges, mtb_granges, ignore.strand=F)
+b<- as.matrix(a)
+utr_follow_genes<-mtb_genes$gene_id[b]
+
+# see how many ties
+a<-nearest(darkred_Granges, mtb_granges, select="all", ignore.strand=F)
+head(a)
+b<-as.matrix(a)
+#show frequency of hits for each utr
+c<-as.data.frame(table(b[,1]))
+utr_tied<-c$Freq
+# see nearest gene (arbitrarily choose in ties)
+a<-nearest(darkred_Granges, mtb_granges, select="arbitrary", ignore.strand=F)
+b<-as.matrix(a)
+utr_nearest_genes<-mtb_genes$gene_id[b]
+length(utr_nearest_genes)
+
+
+#make dataframe with utr, preceding and following genes
+utr_df_darkred<-data.frame(dark_red_UTRs)
+utr_df_darkred$precede<-utr_precede_genes
+utr_df_darkred$follow <-utr_follow_genes
+utr_df_darkred$nearest<-utr_nearest_genes
+utr_df_darkred$tied   <-utr_tied
+View(utr_df_darkred)
+# if nearest == precede, 3' UTR; if nearest ==follow, 5'UTR
+# if tied? need to look for tss
+
+# find TSS in utrs
+# how many of srna-seq are verified with TSS at start??
+# subset darkredGranges by strand (is this necessary?)
+darkred_fwd_Granges<-darkred_Granges[strand(darkred_Granges) == "+"]
+fwd_df<-as.data.frame(darkred_fwd_Granges)
+darkred_rev_Granges<-darkred_Granges[strand(darkred_Granges) =="-"]
+rev_df<-as.data.frame(darkred_rev_Granges)
+# read in tss and make into granges obj
+tss<-read.delim("~/git/mtb_modules/Data/shell_cortes_srna_tss.txt", sep=" ")
+tss_gr<-GRanges(seqnames = "AL123456.3",
+                         ranges   = IRanges(tss$Genome.position, 
+                                            end = tss$Genome.position),
+                         strand   = Rle(strand(tss$Strand))
+                         )
+head(tss_gr)
+
+## find overlap of each to tss within 10 bp of start (will this use wrong end of - strand utrs?)
+fwd_tss_overlaps <-
+  findOverlaps(
+    darkred_fwd_Granges,
+    tss_gr,
+    type = "start",
+    maxgap = 10,
+    select = "first",
+    ignore.strand = FALSE
+  )
+
+qh<-as.matrix(fwd_tss_overlaps)
+fwd_df$tss<-ifelse(is.na(qh), FALSE, tss[qh])
+View(fwd_df)
+# reverse strand
+rev_tss_overlaps<-
+  findOverlaps(
+    darkred_rev_Granges,
+    tss_gr,
+    type = "end",
+    maxgap = 10,
+    select = "first",
+    ignore.strand = FALSE
+  )
+
+qh<-as.matrix(rev_tss_overlaps)
+rev_df$tss<-ifelse(is.na(qh), FALSE, tss[qh])
+#put back together
+df_tss<-rbind(fwd_df, rev_df)
+
+df_tss_o<-df_tss[order(df_tss$start),]
+nrow(df_tss_o)
+
+# using start position of - strand, need to divide up by strands, needs to be 'end' of rev strand 
+
+```
 
