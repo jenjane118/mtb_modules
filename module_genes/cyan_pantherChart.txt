@@ -1,7 +1,0 @@
-1	ligase activity (GO:0016874)	3	17.6%	15.0%
-2	oxidoreductase activity (GO:0016491)	7	41.2%	35.0%
-3	catalytic activity, acting on RNA (GO:0140098)	2	11.8%	10.0%
-4	transferase activity (GO:0016740)	1	5.9%	5.0%
-5	hydrolase activity (GO:0016787)	5	29.4%	25.0%
-6	catalytic activity, acting on a protein (GO:0140096)	1	5.9%	5.0%
-7	lyase activity (GO:0016829)	1	5.9%	5.0%

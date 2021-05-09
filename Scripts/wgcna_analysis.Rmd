@@ -186,7 +186,7 @@ dev.off()
 
 ```
 
-![heatmap trait/module correlations with p-values net2](~/git/mtb_modules/labeled_heatmap_net2.png)
+![heatmap trait/module correlations with p-values net2](~/git/mtb_modules/Images/labeled_heatmap_net2.png)
 
 
 
@@ -262,7 +262,8 @@ plotModuleSignificance(stat_GS,moduleColors2, main = "Stationary gene signif",
 dev.off()
 ```
 
-![gene significance against module membership](~/git/mtb_modules/gene_significance_plots.png)
+![gene significance against module membership](~/git/mtb_modules/Images/gene_significance_plots.png)
+
 
 
 Look at genes within each module:
@@ -307,6 +308,8 @@ dim(datKME2)
 kMEroyalblue_Rv0040c = bicorAndPvalue(analysis[,"gene:Rv0040c"], MEs2$MEroyalblue)
 kMEroyalblue_Rv0040c$bicor
 kMEroyalblue_Rv0040c$p
+
+
 
 # make dataframe of module correlation and pvalue for each gene in each module
 
@@ -391,6 +394,8 @@ head(filtered_mods_df)
 
 To look at functional category for each gene in a module, perhaps use Malone's functional category list that Sharon used for tnseq? classify by 'fxnal anno' column in 'malone_orthologs.csv'
 
+Looked at goseq, but no supported organisms matching mycobacterium tb. You can search on Panther and biocyc
+
 This won't show me whether or not something is enriched in a certain pathway/functional category.
 
 Start with 'lightcyan1' which is strong negative correlation with dormancy with high avg gene significance.
@@ -405,15 +410,12 @@ malone_csv[1:10,5]
 # columns 'Rv.tag', 'Annotation', 'Fxnal.anno' most useful
 
 # get filtered genes from light cyan module
-
 # filtering genes for condition gene significance (how correlated gene is to trait) and module membership (how correlated gene is to module)
-
 FilterGenes= abs(GS_dorm)> .2 & abs(datKME2$MM.lightcyan1)>.8 
 table(FilterGenes)
 # why does only one gene meet this criteria? Very few genes in module?
 s[which(s$moduleColors2=="lightcyan1"),]
 # only has 33 genes
-
 # try with 'floralwhite'
 FilterGenes <- abs(GS_dorm) > .2 & abs(datKME2$MM.floralwhite) > .8
 table(FilterGenes)
@@ -421,7 +423,6 @@ table(FilterGenes)
 s[which(s$moduleColors2=="floralwhite"),]
 #floral white only has 32 genes in it! genes are assigned modules based on module membership in other modules as well. So maybe this isn't best way to filter genes. 
 
-#just get list of genes from 'lightcyan1'
 
 # get list of gene names, filter for CDS
 genes_lightcyan1<-colnames(analysis[,moduleColors2=="lightcyan1"])
@@ -431,10 +432,11 @@ genes_lightcyan1<-substring(genes_lightcyan1, 6)
 # assign annotation and func annot from ortholog file
 lightcyan1_gene_df <- data.frame(matrix("NA", nrow=length(genes_lightcyan1), ncol=3))
 lightcyan1_gene_df[,1] <- genes_lightcyan1
-lightcyan1_gene_df[,2] <- malone_csv[match(lightcyan1_gene_df[,1],malone_csv[,2]),4]
+lightcyan1_gene_df[,2] <- malone_csv[match(lightcyan1_gene_df[,1],malone_csv[,2]),5]
 lightcyan1_gene_df[,3] <- malone_csv[match(lightcyan1_gene_df[,1],malone_csv[,2]),6]
-colnames(lightcyan1_gene_df) <- c("ID", "gene_name", "funct_annotation")
+colnames(lightcyan1_gene_df) <- c("ID", "annotation", "funct_annotation")
 View(lightcyan1_gene_df)
+# quite a few 'cell wall and processes'
 
 # for 'floralwhite'
 genes_floralwhite <- colnames(analysis[,moduleColors2=="floralwhite"])
@@ -446,7 +448,60 @@ floralwhite_gene_df[,2] <- malone_csv[match(floralwhite_gene_df[,1],malone_csv[,
 floralwhite_gene_df[,3] <- malone_csv[match(floralwhite_gene_df[,1],malone_csv[,2]),6]
 colnames(floralwhite_gene_df) <- c("ID", "annotation", "funct_annotation")
 View(floralwhite_gene_df)
+# includes cell wall, lipids and esx secretion system genes, PE/PPE
+# missing entry Rv0222 (must have no ortholog in bovis) is also involved in lipid metabolism
+
+
+# for 'purple'
+genes_purple <- colnames(analysis[,moduleColors2=="purple"])
+genes_purple <- genes_purple[grep("gene", genes_purple, value=F)]
+genes_purple <- substring(genes_purple, 6)
+purple_gene_df <- data.frame(matrix("NA", nrow=length(genes_purple), ncol=3))
+purple_gene_df[,1] <- genes_purple
+purple_gene_df[,2] <- malone_csv[match(purple_gene_df[,1],malone_csv[,2]),5]
+purple_gene_df[,3] <- malone_csv[match(purple_gene_df[,1],malone_csv[,2]),6]
+colnames(purple_gene_df) <- c("ID", "annotation", "funct_annotation")
+View(purple_gene_df)
+# bigger module, more variety, including ribosomal proteins and 'information pathways', 'cell wall processes', and virulence
 
 
 ```
+
+Made a program to assign utr names and record TSS for utrs and srnas. (utr_gene_assignment.Rmd, utr_assign.R). Created module gene list for each module including filtered UTRs and indicated sRNAs with TSS. 
+
+Within a module, do the UTRs tend to cluster with their assigned genes?
+
+```{r utr_module_assignment}
+utr_percent_df<-data.frame(matrix(0, nrow=48, ncol=3))
+colnames(utr_percent_df)<-c("module", "num_utrs", "utr_gene_match")
+for (i in 1:48){
+  mod_color  <- colnames(MEs2)[i]
+  color_name <- substr(mod_color, 3, nchar(mod_color))
+  file_color <- paste("~/git/mtb_modules/module_genes/", color_name,
+                      "_all_genes.txt", sep="")
+  genes<-readLines(file_color)
+# pattern for utrs: 5UTR_Rv3443c, pattern for genes: gene:Rv0023
+  mod_genes <- genes[grepl("gene", genes)]
+  mod_genes <- substr(mod_genes, 6, nchar(mod_genes))
+  mod_utrs <- genes[grepl("UTR", genes)]
+  mod_utrs <- substr(mod_utrs, 6, nchar(mod_utrs))
+  length(mod_utrs)
+#60
+  utr_gene_match <- mod_utrs[mod_utrs %in% mod_genes]
+  utr_gene_match
+  length(utr_gene_match)
+#24
+  percent_match<-round(length(utr_gene_match)/length(mod_utrs) * 100, 2)
+# 40%
+  utr_percent_df$module[i] <- color_name
+  utr_percent_df$num_utrs[i] <- length(mod_utrs)
+  utr_percent_df$utr_gene_match[i] <- percent_match
+}  
+View(utr_percent_df)
+```
+
+Kind of curious about these srnas that look like they blend in with 5'utrs, but I guess there are a couple 100 bp between.
+
+![srna_artemis](~/git/mtb_modules/Images/srna_artemis_screenshot.png)
+
 

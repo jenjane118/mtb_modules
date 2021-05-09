@@ -1,0 +1,17 @@
+gene:Rv1383
+gene:Rv1457c
+gene:Rv1596
+gene:Rv1659
+gene:Rv1769
+gene:Rv2072c
+gene:Rv2246
+gene:Rv2247
+gene:Rv2845c
+gene:Rv2931
+gene:Rv3208
+gene:Rv3260c
+gene:Rv3754
+gene:Rv3786c
+5UTR_Rv3029c
+5UTR_Rv3260c
+putative_sRNA:m3388896_3388983*

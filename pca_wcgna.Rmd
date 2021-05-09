@@ -749,10 +749,10 @@ dev.off()
 
 #save the module assignment and module eigengene info for subsequent analysis
 # each gene assigned a module number
-moduleLabels = net$colors
+#moduleLabels = net$colors
 moduleLabels2 <- net2$colors
 #each gene assigned a color
-moduleColors = labels2colors(net$colors)
+#moduleColors = labels2colors(net$colors)
 moduleColors2 <- labels2colors(net2$colors)
 # module eigengenes
 MEs = net$MEs;
@@ -863,7 +863,7 @@ plot(hclustdatME, main="Clustering tree based on the module eigengenes")
 dev.off()
 ```
 
-![clustering tree of MEs](~/git/mtb_modules/clust_eigengenes.png)
+![clustering tree of MEs](~/git/mtb_modules/Images/clust_eigengenes.png)
 
 Make heatmap plots of module expressions. This may help identify modules that are “held together” by spurious correlations caused by outlying arrays
 
@@ -885,7 +885,7 @@ for (i in 1:5){
 dev.off()
 ```
 
-![heatmaps of 5 largest modules](~/git/mtb_modules/mod_mem_heatmaps.png)
+![heatmaps of 5 largest modules](~/git/mtb_modules/Images/mod_mem_heatmaps.png)
 
 [wgcna tutorial on visualising networks](https://horvath.genetics.ucla.edu/html/CoexpressionNetwork/Rpackages/WGCNA/Tutorials/FemaleLiver-05-Visualization.pdf)
 
@@ -1162,10 +1162,10 @@ dev.off()
 
 
 ```
-![heatmap trait/module correlations and p-values](~/git/mtb_modules/labeled_heatmap.png)
+![heatmap trait/module correlations and p-values](~/git/mtb_modules/Images/labeled_heatmap.png)
 
 
-![heatmap trait/module correlations/p-values net2](~/git/mtb_modules/labeled_heatmap_net2.png)
+![heatmap trait/module correlations/p-values net2](~/git/mtb_modules/Images/labeled_heatmap_net2.png)
 
 
 
@@ -1372,6 +1372,7 @@ How to get lists of genes in each module?
 genes_blue<-colnames(analysis[,moduleColors2=="blue"])
 length(genes_blue)
 #578
+genes_darkgrey<-colnames(analysis[,moduleColors2=="darkgrey"])
 
 # can also filter these below to get gene names
 
@@ -1488,22 +1489,29 @@ Rv1456c_mods<-datKME2["gene:Rv1456c", abs(datKME2["gene:Rv1456c", ])> 0.5]
 Rv1456c_mods  #cyan module is highest mod membership
 # midnight blue also nearly at 0.8
 
-# get module correlation and pvalue for specific gene in module
-kMEmidnightblue_Rv1456c = bicorAndPvalue(analysis[,"gene:Rv1456c"], MEs2$MEmidnightblue)
-kMEmidnightblue_Rv1456c$bicor 
-kMEmidnightblue_Rv1456c$p
+Rv3249c_mods <-datKME2["gene:Rv3249c", abs(datKME2["gene:Rv3249c", ]) > 0.5]
+Rv3249c_mods
+#             MM.purple MM.darkorange2  MM.black MM.darkgrey
+#gene:Rv3249c -0.5007611      0.7673765 0.5202443   0.5930313
 
-#list genes in cyan module with membership > 0.8?
-x <- (abs(datKME2$MM.midnightblue)> 0.7)
-y<-datKME2$MM.midnightblue[x]
+# get module correlation and pvalue for specific gene in module
+kMEdarkgrey_Rv3249c = bicorAndPvalue(analysis[,"gene:Rv3249c"], MEs2$MEdarkgrey)
+kMEdarkgrey_Rv3249c$bicor 
+kMEdarkgrey_Rv3249c$p
+
+#list genes in darkgrey module with membership > 0.8?
+x <- (abs(datKME2$MM.darkgrey)> 0.8)
+y<-datKME2$MM.darkgrey[x]
 length(y)
 
+
+
 # see how many genes related to low iron in cyan
-midnightblue_filtered<- abs(GS_iron)> .2 &  abs(datKME2$MM.midnightblue) > 0.7 
-table(midnightblue_filtered)
+darkgrey_filtered<- abs(GS_iron)> .2 &  abs(datKME2$MM.darkgrey) > 0.5 
+table(darkgrey_filtered)
 # get list of gene names
-KME_filtered_midnightblue<-dimnames(data.frame(analysis))[[2]][midnightblue_filtered]
-KME_filtered_midnightblue
+KME_filtered_darkgrey<-dimnames(data.frame(analysis))[[2]][darkgrey_filtered]
+KME_filtered_darkgrey
 # export gene list
 # first select for genes only (not putative ncRNA)
 midnightblue_genes<-KME_filtered_midnightblue[grepl("gene", KME_filtered_midnightblue)]
@@ -1577,145 +1585,29 @@ writeLines(KME_filtered_darkred, con="~/git/mtb_modules/module_genes/darkred_all
 
 ```
 
-Write script to assign utrs to genes.
+Write script to assign utrs to genes. See 'utr_gene_assignment.Rmd' for utr assignment. (function==utr_assign.R)
 
 Name of putative non-coding utr in gff: "putative_UTR.m210813_210891"
 m=minus strand, p=plus strand followed by genome coordinates
 Doesn't specify 3' or 5'
 
-change to 3UTR.RvXXXXx or 5UTR.RvXXXXx
+change to 3UTR_RvXXXXx or 5UTR_RvXXXXx
 
 What if is in-between two genes? Choose upstream gene: 3UTR? 
 Could double-check with TSS? If TSS present= 5UTR, no TSS = 3UTR.
 Manually checked UTRs from midnightblue: very few have adjacent genes in module
 
+
+
+
 ```{r}
+# look at specific gene and module membership
+module = "darkgrey"
 
-# use genomic ranges to assign gene name to UTRs
-library(GenomicRanges)
-library(rtracklayer)
-library(stringr)
-#BiocManager::install("GenomicFeatures")
-#library(GenomicFeatures)
-#define the GRanges object subject as the collection of genes 
-# read in gff for mtb (use same one as for BH prediction) as genomic ranges object
-mtb_granges<-import("~/git/mtb_modules/ref_seqs/Mtb_h37rv.ASM19595v2_AL123456.3.gff3")
-# filter for type='gene'
-mtb_granges<-mtb_granges[mcols(mtb_granges)$type=="gene"]
-head(mtb_granges)
-KME_filtered_darkred<-readLines("~/git/mtb_modules/module_genes/darkred_all_genes.txt")
+column = match(module, modNames2);
+moduleGenes = moduleColors2==module;
 
-#create granges objects for all the utrs in list of module genes
-# parse list of genes for start and end coordinates
-dark_red_UTRs <- KME_filtered_darkred[grepl("UTR", KME_filtered_darkred)]
-utrs <- str_split_fixed(dark_red_UTRs, "UTR.", 2)[,2]
-length(utrs)
-darkred_UTR_df <- data.frame(matrix(0, nrow=length(utrs), ncol=3),stringsAsFactors = F)
-colnames(darkred_UTR_df) <- c("strand", "start", "stop")
-for (i in 1:length(utrs)){
-  strand <- substr(utrs[i], 1, 1)
-  start  <- str_split_fixed(utrs[i], "_", 2)[,1]
-  start  <- sub(".", "", start)
-  stop   <- str_split_fixed(utrs[i], "_", 2)[,2]
-  darkred_UTR_df$strand[i] <- strand
-  darkred_UTR_df$start[i]  <- as.numeric(start)
-  darkred_UTR_df$stop[i]   <- as.numeric(stop)
-}
-darkred_UTR_df$strand <- sub('p', '+', darkred_UTR_df$strand)
-darkred_UTR_df$strand <- sub('m', '-', darkred_UTR_df$strand)
-#View(darkred_UTR_df)
-
-darkred_Granges<-GRanges(seqnames = "AL123456.3",
-                         ranges   = IRanges(darkred_UTR_df$start, end = darkred_UTR_df$stop),
-                         strand   = Rle(strand(darkred_UTR_df$strand))
-)
-
-# nearest(utrs, refseq, select="all", ignore.strand = F) will give me nearest gene feature. But will it look at strand? select=all means returns both nearest features in case of a tie, arbitrary chooses one. (or can use precede() or follow()). Maybe use both when searching whether utr co-locates with gene?
-
-a<-precede(darkred_Granges, mtb_granges,ignore.strand=F)
-# have to coerce to matrix because 'arbitrary' not working otherwise
-b<-as.matrix(a)
-mtb_genes<-as.data.frame(mtb_granges)
-utr_precede_genes<-mtb_genes$gene_id[b]
-
-a<-follow(darkred_Granges, mtb_granges, ignore.strand=F)
-b<- as.matrix(a)
-utr_follow_genes<-mtb_genes$gene_id[b]
-
-# see how many ties
-a<-nearest(darkred_Granges, mtb_granges, select="all", ignore.strand=F)
-head(a)
-b<-as.matrix(a)
-#show frequency of hits for each utr
-c<-as.data.frame(table(b[,1]))
-utr_tied<-c$Freq
-# see nearest gene (arbitrarily choose in ties)
-a<-nearest(darkred_Granges, mtb_granges, select="arbitrary", ignore.strand=F)
-b<-as.matrix(a)
-utr_nearest_genes<-mtb_genes$gene_id[b]
-length(utr_nearest_genes)
-
-
-#make dataframe with utr, preceding and following genes
-utr_df_darkred<-data.frame(dark_red_UTRs)
-utr_df_darkred$precede<-utr_precede_genes
-utr_df_darkred$follow <-utr_follow_genes
-utr_df_darkred$nearest<-utr_nearest_genes
-utr_df_darkred$tied   <-utr_tied
-View(utr_df_darkred)
-# if nearest == precede, 3' UTR; if nearest ==follow, 5'UTR
-# if tied? need to look for tss
-
-# find TSS in utrs
-# how many of srna-seq are verified with TSS at start??
-# subset darkredGranges by strand (is this necessary?)
-darkred_fwd_Granges<-darkred_Granges[strand(darkred_Granges) == "+"]
-fwd_df<-as.data.frame(darkred_fwd_Granges)
-darkred_rev_Granges<-darkred_Granges[strand(darkred_Granges) =="-"]
-rev_df<-as.data.frame(darkred_rev_Granges)
-# read in tss and make into granges obj
-tss<-read.delim("~/git/mtb_modules/Data/shell_cortes_srna_tss.txt", sep=" ")
-tss_gr<-GRanges(seqnames = "AL123456.3",
-                         ranges   = IRanges(tss$Genome.position, 
-                                            end = tss$Genome.position),
-                         strand   = Rle(strand(tss$Strand))
-                         )
-head(tss_gr)
-
-## find overlap of each to tss within 10 bp of start (will this use wrong end of - strand utrs?)
-fwd_tss_overlaps <-
-  findOverlaps(
-    darkred_fwd_Granges,
-    tss_gr,
-    type = "start",
-    maxgap = 10,
-    select = "first",
-    ignore.strand = FALSE
-  )
-
-qh<-as.matrix(fwd_tss_overlaps)
-fwd_df$tss<-ifelse(is.na(qh), FALSE, tss[qh])
-View(fwd_df)
-# reverse strand
-rev_tss_overlaps<-
-  findOverlaps(
-    darkred_rev_Granges,
-    tss_gr,
-    type = "end",
-    maxgap = 10,
-    select = "first",
-    ignore.strand = FALSE
-  )
-
-qh<-as.matrix(rev_tss_overlaps)
-rev_df$tss<-ifelse(is.na(qh), FALSE, tss[qh])
-#put back together
-df_tss<-rbind(fwd_df, rev_df)
-
-df_tss_o<-df_tss[order(df_tss$start),]
-nrow(df_tss_o)
-
-# using start position of - strand, need to divide up by strands, needs to be 'end' of rev strand 
+names(analysis)[moduleColors2=="black"]
 
 ```
 
